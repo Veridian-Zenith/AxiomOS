@@ -1,0 +1,8 @@
+/build
+/target
+*.o
+*.elf
+*.img
+*.iso
+uefi_disk
+

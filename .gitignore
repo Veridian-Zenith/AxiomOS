@@ -1,0 +1,6 @@
+/build
+/target
+*.o
+*.elf
+*.img
+*.iso
