@@ -46,7 +46,7 @@ AxiomOS uses a polyglot architecture to balance safety, control, and performance
 
 ## 🛠️ Developer Environment (Fedora 43)
 
-| Tool        | Version | Purpose                  c        |
+| Tool        | Version | Purpose                  c       |
 | ----------- | ------- | -------------------------------- |
 | Rustc       | 1.93+   | Kernel & UEFI loader             |
 | Clang / LLD | 21.1+   | HAL & cross-language linking     |

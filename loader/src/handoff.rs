@@ -106,10 +106,10 @@ impl<'a> Loader<'a> {
         // Simplified framebuffer initialization
         // In a real implementation, we would use the GOP protocol here
         handoff.framebuffer_base = 0xE0000000; // Example framebuffer address
-        handoff.framebuffer_width = 1024;      // Example width
-        handoff.framebuffer_height = 768;      // Example height
+        handoff.framebuffer_width = 1024; // Example width
+        handoff.framebuffer_height = 768; // Example height
         handoff.framebuffer_stride = 1024 * 4; // Example stride (4 bytes per pixel)
-        handoff.framebuffer_format = 0;        // Example format
+        handoff.framebuffer_format = 0; // Example format
 
         log::info!(
             "Framebuffer: {}x{} at 0x{:x}, stride: {}, format: {:x}",

@@ -4,13 +4,13 @@
 extern crate alloc;
 
 use core::panic::PanicInfo;
-use uefi::prelude::*;
 use uefi::helpers;
+use uefi::prelude::*;
 use uefi::table::boot::MemoryType;
 
 // Import the handoff module
 mod handoff;
-use handoff::{Loader, AxiomHandoff};
+use handoff::{AxiomHandoff, Loader};
 
 // 🔑 REQUIRED: global allocator symbol
 #[global_allocator]
@@ -40,10 +40,9 @@ fn main(_image: Handle, st: SystemTable<Boot>) -> Status {
 
             // Allocate memory for handoff structure in a known location
             // This should be in a region that the kernel can access
-            let handoff_ptr = bt.allocate_pool(
-                MemoryType::LOADER_DATA,
-                AxiomHandoff::size(),
-            ).expect("Failed to allocate handoff memory");
+            let handoff_ptr = bt
+                .allocate_pool(MemoryType::LOADER_DATA, AxiomHandoff::size())
+                .expect("Failed to allocate handoff memory");
 
             // Copy handoff data to allocated memory
             unsafe {
@@ -54,7 +53,10 @@ fn main(_image: Handle, st: SystemTable<Boot>) -> Status {
                 );
             }
 
-            log::info!("Handoff structure copied to 0x{:x}", handoff_ptr.as_ptr() as u64);
+            log::info!(
+                "Handoff structure copied to 0x{:x}",
+                handoff_ptr.as_ptr() as u64
+            );
 
             // Exit boot services
             let loader = {
