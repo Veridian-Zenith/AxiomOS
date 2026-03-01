@@ -1,6 +1,4 @@
-/build
-/target
-*.o
-*.elf
-*.img
-*.iso
+# ==== Zig ====
+**/.zig-cache/
+**/zig-out/
+**/*.o
