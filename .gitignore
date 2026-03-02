@@ -2,3 +2,24 @@
 **/.zig-cache/
 **/zig-out/
 **/*.o
+**/out
+**/*.ld**/*.so
+**/*.a
+
+# ==== Build Artifacts ====
+/build/
+*.bin
+*.elf
+*.iso
+*.img
+
+# ==== IDE ====
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# ==== Analysis Tools ====
+compile_commands.json
+.clangd/
