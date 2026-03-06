@@ -1,85 +1,99 @@
 # Building AxiomOS
 
-## Prerequisites
+This guide provides the necessary steps to compile and run AxiomOS from source.
 
-- Zig 0.15.2+
-- LLVM/Clang toolchain (from config.fish)
-- mold linker (optional, but recommended)
-- QEMU x86_64 (for testing)
+## 1. Prerequisites
 
-## Setup Environment
+You will need a modern Linux environment with the following tools installed:
 
-```bash
-# Load build environment
-source config.fish
+- **Git:** For cloning the repository.
+- **CMake:** Version 3.25 or newer.
+- **Clang/LLVM:** Version 15 or newer. The build system relies on `clang`, `lld`, and other LLVM tools.
+- **QEMU:** For running the OS in an emulator. You will also need the `OVMF` firmware package for UEFI support (e.g., `ovmf` on Arch Linux, `ovmf` on Debian/Ubuntu).
 
-# Verify Zig installation
-zig version
+## 2. Getting the Source
 
-# Check available targets
-zig targets | grep x86_64
+First, clone the AxiomOS repository to your local machine:
+
+```sh
+git clone https://github.com/your-username/AxiomOS.git
+cd AxiomOS
 ```
 
-## Build Commands
+## 3. Compilation
 
-### Full Build
-```bash
-zig build
+The project uses a standard CMake workflow.
+
+1.  **Configure the build directory:**
+    ```sh
+    cmake -B build -G Ninja
+    ```
+    *(Note: `-G Ninja` is optional but recommended for faster builds.)*
+
+2.  **Compile the source code:**
+    ```sh
+    cmake --build build
+    ```
+
+After the build completes, the bootloader (`bootloader.efi`) and the kernel (`kernel`) will be located in the `build/` directory.
+
+## 4. Running in QEMU
+
+To run AxiomOS, you need to create a FAT32 disk image and place the bootloader and kernel on it according to the UEFI specification.
+
+### Automated Script (Recommended)
+
+A helper script is provided to automate this process.
+
+```sh
+# (To be created)
+./tools/run-qemu.sh
 ```
 
-### Build Bootloader Only
-```bash
-zig build-exe bootloader/main.zig -target x86_64-uefi -O ReleaseSafe
-```
+### Manual Setup
 
-### Build Kernel Only
-```bash
-zig build-exe kernel/src/main.zig -target x86_64-freestanding -O ReleaseSafe
-```
+If you wish to run QEMU manually:
 
-### Run in QEMU
+1.  **Create a disk image:**
+    ```sh
+    dd if=/dev/zero of=axiom.img bs=1M count=64
+    mkfs.fat -F32 axiom.img
+    ```
 
-```bash
-# Boot with bootloader (requires disk image setup)
-qemu-system-x86_64 \
-  -bios /usr/share/ovmf/OVMF_CODE.fd \
-  -cpu host \
-  -m 4G \
-  -serial stdio \
-  -drive format=raw,file=axiom.img
-```
+2.  **Mount the image and copy files:**
+    ```sh
+    # Using mtools (safe)
+    mcopy -i axiom.img build/kernel ::/
+    mmd -i axiom.img ::/EFI
+    mmd -i axiom.img ::/EFI/BOOT
+    mcopy -i axiom.img build/bootloader.efi ::/EFI/BOOT/BOOTX64.EFI
+    ```
+    *or, using a loop device (requires root):*
+    ```sh
+    sudo mount -o loop axiom.img /mnt
+    sudo mkdir -p /mnt/EFI/BOOT
+    sudo cp build/kernel /mnt/
+    sudo cp build/bootloader.efi /mnt/EFI/BOOT/BOOTX64.EFI
+    sudo umount /mnt
+    ```
 
-## Code Quality Checks
+3.  **Launch QEMU:**
+    Find your `OVMF_CODE.fd` file (often in `/usr/share/ovmf/` or `/usr/share/edk2-ovmf/`).
+    ```sh
+    qemu-system-x86_64 \
+      -bios /path/to/OVMF_CODE.fd \
+      -drive format=raw,file=axiom.img \
+      -m 2G \
+      -cpu host \
+      -serial stdio
+    ```
 
-### Lint with zig fmt
-```bash
-zig fmt --check kernel/src/
-zig fmt kernel/src/  # Auto-fix
-```
+## 5. Troubleshooting
 
-## Debug Build Artifacts
+- **`clang++: error: invalid target 'x86_64-unknown-uefi'`**
+  - Your version of Clang is too old. Please upgrade to at least version 15.
 
-```bash
-# Inspect kernel symbols
-llvm-nm zig-out/bin/kernel
-
-# Disassemble kernel
-llvm-objdump -d zig-out/bin/kernel | head -100
-
-# Check sections
-llvm-objdump -h zig-out/bin/kernel
-```
-
-## Troubleshooting
-
-**Error: "cannot find -lc"**
-- Expected, we're using freestanding target
-
-**Serial output not showing**
-- Check COM1 (0x3F8) is accessible
-- Verify UART initialization in serial.zig
-- Use QEMU's -serial option
-
-**Kernel panics at startup**
-- Check memory map parsing (check EFI descriptor count)
-- Verify higher-half kernel mapping (linker.ld)
+- **QEMU exits immediately or shows a black screen**
+  - Ensure `OVMF_CODE.fd` is the correct path.
+  - Verify that the bootloader was correctly copied to `/EFI/BOOT/BOOTX64.EFI` on the image.
+  - Check the serial output for any early error messages from the bootloader or kernel.

@@ -2,12 +2,29 @@
 # Base
 # =========================================================
 source /usr/share/cachyos-fish-config/cachyos-config.fish
-fish_add_path /home/dae/.spicetify
+fish_add_path $HOME/.spicetify
+
+set -gx CLICOLOR 1
+set -gx COLORTERM truecolor
+set -gx MANPAGER "less -R"
 
 # =========================================================
-# LLVM / Clang Toolchain
+# Fish Syntax Colors (neutral but modern)
 # =========================================================
-# Core compiler & tools
+set -U fish_color_command brmagenta
+set -U fish_color_keyword brpurple
+set -U fish_color_param yellow
+set -U fish_color_error red
+set -U fish_color_cwd bryellow
+set -U fish_color_autosuggestion 555
+set -U fish_color_comment brblack
+set -U fish_color_operator brcyan
+set -U fish_color_escape brblue
+set -U fish_color_quote brgreen
+
+# =========================================================
+# LLVM / Clang Toolchain (Pure LLD)
+# =========================================================
 set -Ux CC clang
 set -Ux CXX clang++
 set -Ux LD ld.lld
@@ -21,80 +38,117 @@ set -Ux AS clang
 set -Ux HOSTCC clang
 set -Ux HOSTCXX clang++
 
-# Optimization, hardening, and quiet warnings
-set -Ux CFLAGS "-march=native -O3 -pipe -fno-plt \
+# =========================================================
+# Compiler & Debug Flags
+# =========================================================
+set -Ux COMMON_FLAGS "-march=native -O3 -pipe -fno-plt \
 -Wno-unused-variable -Wno-unused-parameter -Wno-unused-function \
 -Wno-unused-but-set-variable -Wno-missing-field-initializers \
--Wno-sign-compare -Wno-unused-result"
+-Wno-sign-compare -Wno-unused-result -fexperimental-new-pass-manager"
 
-set -Ux CXXFLAGS "$CFLAGS"
+# Debug / Sanitizers
+set -Ux DEBUG_FLAGS "-g -fstandalone-debug -fsanitize=undefined,address,leak \
+-fsanitize-recover=all -fno-omit-frame-pointer -fno-optimize-sibling-calls"
 
-set -Ux LDFLAGS "-fuse-ld=mold -Wl,-O1,--as-needed,-z,relro,-z,now"
+set -Ux CFLAGS "$COMMON_FLAGS $DEBUG_FLAGS"
+set -Ux CXXFLAGS "$COMMON_FLAGS $DEBUG_FLAGS"
 set -Ux CPPFLAGS "-D_FORTIFY_SOURCE=3"
 set -Ux LTOFLAGS "-flto=thin"
 
-# LLVM build tuning
+# =========================================================
+# Linker Flags (Pure LLD)
+# =========================================================
+set -Ux LDFLAGS "-fuse-ld=lld -Wl,-O1,--as-needed,-z,relro,-z,now"
 set -Ux LLVM_PARALLEL_LINK_JOBS (nproc)
 set -Ux LLVM_ENABLE_LLD 1
 set -Ux LLVM_ENABLE_LTO thin
 
-# ccache
-set -Ux CCACHE_DIR /var/cache/ccache
-set -Ux CCACHE_MAXSIZE 20G
-
 # =========================================================
-# Rust Toolchain (LLVM-aligned + optimized)
+# Rust Toolchain (LLVM-only)
 # =========================================================
-# Ensure Rust uses the LLVM linker and LTO + quiet warnings
 set -Ux RUSTFLAGS "-C linker=clang -C link-arg=-fuse-ld=lld -C lto=thin \
 -A dead_code -A unused_variables -A unused_imports"
 
-# Incremental builds off (fully deterministic)
 set -Ux CARGO_INCREMENTAL 0
-
-# Force target dir to cache builds
 set -Ux CARGO_TARGET_DIR "$HOME/.cargo/build"
-
-# Optional: enable verbose backtraces for debugging
 set -Ux RUST_BACKTRACE 1
 
 # =========================================================
-# Build Systems (CMake / Make / Ninja)
+# Build Systems & Ninja Integration
 # =========================================================
-set -Ux CMAKE_C_FLAGS "$CFLAGS"
-set -Ux CMAKE_CXX_FLAGS "$CXXFLAGS"
-set -Ux CMAKE_EXE_LINKER_FLAGS "$LDFLAGS"
-set -Ux CMAKE_SHARED_LINKER_FLAGS "$LDFLAGS"
+set -Ux CMAKE_C_FLAGS $CFLAGS
+set -Ux CMAKE_CXX_FLAGS $CXXFLAGS
+set -Ux CMAKE_EXE_LINKER_FLAGS $LDFLAGS
+set -Ux CMAKE_SHARED_LINKER_FLAGS $LDFLAGS
+
+# Ninja parallelism
+set -Ux NINJA_STATUS "[%f/%t] %e "
+set -Ux NINJAFLAGS "-j (nproc)"
+
 set -Ux MAKEFLAGS "-s"
-set -Ux NINJA_STATUS ""
 
 # =========================================================
-# Defaults (Hyprland / UWSM)
+# Defaults (Hyprland)
 # =========================================================
 set -gx terminal kitty
 set -gx fileManager nemo
-set -gx menu rofi -show drun
+set -gx menu "rofi -show drun"
 set -gx browser naver-whale-stable
 set -gx textEditor mousepad
 
 # =========================================================
-# Utilities & Loaders
+# Modern File Listing
+# =========================================================
+if type -q eza
+    alias ls  "eza -lh --icons --group-directories-first"
+    alias ll  "eza -lah --icons --group-directories-first --git"
+    alias la  "eza -a --icons"
+    alias tree "eza --tree --icons"
+else
+    alias ls  "ls -lh --color=auto"
+    alias ll  "ls -lah --color=auto"
+    alias la  "ls -a --color=auto"
+end
+
+alias grep "grep --color=auto"
+alias diff "diff --color=auto"
+alias ip "ip -color=auto"
+
+# =========================================================
+# Utilities
 # =========================================================
 function oneapi
     bass source /opt/intel/oneapi/setvars.sh
 end
 
 alias vtune-gui 'env ELECTRON_OZONE_PLATFORM_HINT=x11 vtune-gui'
-
-# =========================================================
-# System Maintenance
-# =========================================================
-alias cmem 'sudo sync; and echo 3 | sudo tee /proc/sys/vm/drop_caches; and sudo swapoff -a; and sudo systemctl daemon-reexec; and sudo systemctl restart systemd-zram-setup@zram0'
 alias trim 'sudo fstrim -av'
-alias ls 'ls -lh'
 
 # =========================================================
-# Package Management (Paru — Alpine Style)
+# Memory Maintenance
+# =========================================================
+function cmem
+    echo "Syncing..."
+    sudo sync
+
+    echo "Dropping page cache..."
+    echo 3 | sudo tee /proc/sys/vm/drop_caches >/dev/null
+
+    if systemctl is-active --quiet systemd-zram-setup@zram0
+        echo "Restarting zram..."
+        sudo systemctl restart systemd-zram-setup@zram0
+    else if systemctl list-units --type=swap | grep -q active
+        echo "Restarting swap target..."
+        sudo systemctl restart swap.target
+    else
+        echo "No swap devices active."
+    end
+
+    echo "Memory cleanup complete."
+end
+
+# =========================================================
+# Package Management
 # =========================================================
 alias upd         'paru -Syu --noconfirm; and flatpak update -y'
 alias fwupd       'fwupdmgr refresh; and fwupdmgr upgrade'
@@ -106,17 +160,17 @@ alias orphans     'paru -Qtd'
 alias list        'paru -Qe'
 alias info        'paru -Si'
 alias info-local  'paru -Qi'
-alias cache-clean 'sudo rm -rf /var/cache/pacman/pkg/download-*; paru -Sc --noconfirm'
+alias cache-clean 'sudo rm -rf /var/cache/pacman/pkg/download-*; and paru -Sc --noconfirm'
 
-
-# --- GCR SSH setup for Git ---
-# Only run if SSH_AUTH_SOCK is empty
+# =========================================================
+# GCR SSH Agent
+# =========================================================
 if not set -q SSH_AUTH_SOCK
-    # Set it to the GCR default socket
-    set -xg SSH_AUTH_SOCK /run/user/1000/gcr/ssh
+    set -xg SSH_AUTH_SOCK /run/user/(id -u)/gcr/ssh
 end
 
-# Wait until the socket actually exists
 while not test -S $SSH_AUTH_SOCK
     sleep 0.1
 end
+
+starship init fish | source

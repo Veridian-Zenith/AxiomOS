@@ -4,58 +4,48 @@
 
 Every source file must start with:
 
-```zig
-//! Module description: what this file does
-//! Architecture: x86_64 (or generic if applicable)
-//! Safety: requirements/assumptions
+```cpp
+// Module description: what this file does
+// Architecture: x86_64 (or generic if applicable)
+// Safety: requirements/assumptions
 ```
 
 ## Function Documentation
 
-Every public function must have:
+We use Doxygen-style comments for functions:
 
-```zig
-/// Brief one-line description
-/// Parameters:
-///   param_name - description
-/// Returns: description or void
-/// Safety: caller requirements (unsafe blocks, alignment, etc.)
-/// Example: (if applicable)
-pub fn functionName(param: Type) ReturnType {
+```cpp
+/// @brief Brief one-line description
+/// @param param_name description
+/// @return description or void
+/// @note Safety: caller requirements (unsafe operations, alignment, etc.)
+ReturnType functionName(Type param_name) {
     // Implementation
 }
 ```
 
 ## Style Guide
 
-- **Naming**: `snake_case` for functions/variables, `PascalCase` for types
-- **Line Length**: Max 100 characters
-- **Indentation**: 4 spaces (configured in Zig)
-- **Comments**: Explain "why", not "what" - the code shows what
+- **Naming**: `camelCase` for variables and functions, `PascalCase` for classes/structs and namespaces.
+- **Line Length**: Max 120 characters
+- **Indentation**: 4 spaces
+- **Comments**: Explain "why", not "what". The code should explain "what".
+- **Headers**: `#pragma once` is fine, but standard `#ifndef` include guards are preferred.
+- **Namespaces**: Use nested `namespace axiom::submodule {}` to avoid pollution. Never use `using namespace xyz` globally.
+
+## C++ Restrictions
+
+- **Exceptions**: Disabled (`-fno-exceptions`). Return `std::expected` (if polyfilled) or a custom Result type.
+- **RTTI**: Disabled (`-fno-rtti`). Do not use `dynamic_cast` or `typeid`.
+- **Standard Library**: This is a freestanding environment. You only have access to `<cstdint>`, `<cstddef>`, `<type_traits>`, and similar header-only basics. `new`/`delete` and `malloc`/`free` are strictly controlled through custom memory allocators.
+- **Global Objects**: Objects with complex constructors/destructors at global scope require a `__cxa_atexit` runtime and initialization loop. Avoid global complex objects; use POD types or lazy initialization.
 
 ## Safety
 
-- All `asm` blocks must be documented with safety requirements
-- Use inline functions where performance matters
-- Avoid `@ptrCast` without alignment verification
-- Document all assumptions about CPU state (e.g., "assumes paging enabled")
-
-## Memory Management
-
-- Use `allocator` pattern throughout
-- Avoid zero-sized allocations
-- Explicit error handling with try/catch where allocation can fail
-- Document allocation lifetime clearly
+- All `__asm__ volatile` blocks must be wrapped in clean, well-documented helper inline functions.
+- Limit `reinterpret_cast` usage. Ensure alignment requirements are explicitly handled and checked.
 
 ## Architecture-Specific Code
 
-All CPU instructions in `arch/x86_64.zig`:
-- Inline assembly properly escaped
-- Register constraints verified
-- Clobbered registers documented
-
-## Testing
-
-- Build with `-O ReleaseSmall` for size-critical code
-- Use `zig build test` phases (when tests are added)
-- Test on real hardware when possible, fallback to QEMU
+All CPU instructions in `arch/x86_64/`:
+- `__attribute__((packed))` is fully supported and optimized by Clang/LLVM. Ensure packed structs are aligned safely if accessed via pointers.

@@ -1,25 +1,40 @@
-# ==== Zig ====
-**/.zig-cache/
-**/zig-out/
-**/*.o
-**/out
-**/*.ld**/*.so
-**/*.a
+# ==== CMake ====
+# CMake build files
+build/
+*.img
+
+# Doxygen build artifacts
+docs/html/
+docs/latex/
+
+# Other
+.vscode/
+compile_commands.json
+
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+compile_commands.json
 
 # ==== Build Artifacts ====
-/build/
 *.bin
 *.elf
 *.iso
 *.img
+*.efi
+*.o
+*.a
+*.so
 
 # ==== IDE ====
 .vscode/
+.idea/
 *.swp
 *.swo
 *~
 .DS_Store
 
 # ==== Analysis Tools ====
-compile_commands.json
 .clangd/
+.cache/

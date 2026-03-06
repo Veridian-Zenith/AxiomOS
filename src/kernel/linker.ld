@@ -1,7 +1,7 @@
-; AxiomOS Kernel Linker Script
-; x86_64 Higher-Half Kernel (0xFFFFFFFF80000000)
+/* AxiomOS Kernel Linker Script */
+/* x86_64 Higher-Half Kernel (0xFFFFFFFF80000000) */
 
-ENTRY(kentry)
+ENTRY(entry)
 
 SECTIONS {
     . = 0xFFFFFFFF80000000;
@@ -33,3 +33,4 @@ SECTIONS {
         *(.comment)
     }
 }
+
