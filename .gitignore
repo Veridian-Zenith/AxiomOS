@@ -1,31 +1,29 @@
 # ==== CMake ====
 # CMake build files
 build/
-*.img
+**/*.img
 
 # Doxygen build artifacts
 docs/html/
 docs/latex/
 
-# Other
-.vscode/
-compile_commands.json
+firmware/
 
-CMakeCache.txt
+**CMakeCache.txt
 CMakeFiles/
-cmake_install.cmake
-Makefile
-compile_commands.json
+**/cmake_install.cmake
+**/Makefile
+**/compile_commands.json
 
 # ==== Build Artifacts ====
-*.bin
-*.elf
-*.iso
-*.img
-*.efi
-*.o
-*.a
-*.so
+**/.bin
+**/*.elf
+**/*.iso
+**/*.img
+**/*.efi
+**/*.o
+**/.a
+**/*.so
 
 # ==== IDE ====
 .vscode/
@@ -38,3 +36,8 @@ compile_commands.json
 # ==== Analysis Tools ====
 .clangd/
 .cache/
+
+# ==== Local Logs & Tests ====
+log.txt
+run_log.txt
+test_sysv.cpp

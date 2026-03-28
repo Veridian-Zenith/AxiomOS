@@ -1,36 +1,32 @@
-/* AxiomOS Kernel Linker Script */
-/* x86_64 Higher-Half Kernel (0xFFFFFFFF80000000) */
+OUTPUT_FORMAT(elf64-x86-64)
+ENTRY(_start)
 
-ENTRY(entry)
-
-SECTIONS {
-    . = 0xFFFFFFFF80000000;
-
-    .text ALIGN(0x1000) : AT(ADDR(.text) - 0xFFFFFFFF80000000) {
-        *(.text.entry)
-        *(.text)
-        *(.text.*)
-    }
-
-    .rodata ALIGN(0x1000) : AT(ADDR(.rodata) - 0xFFFFFFFF80000000) {
-        *(.rodata)
-        *(.rodata.*)
-    }
-
-    .data ALIGN(0x1000) : AT(ADDR(.data) - 0xFFFFFFFF80000000) {
-        *(.data)
-        *(.data.*)
-    }
-
-    .bss ALIGN(0x1000) : AT(ADDR(.bss) - 0xFFFFFFFF80000000) {
-        *(.bss)
-        *(.bss.*)
-        *(COMMON)
-    }
-
-    /DISCARD/ : {
-        *(.eh_frame)
-        *(.comment)
-    }
+PHDRS
+{
+    text    PT_LOAD    FLAGS(0x05); /* Read | Execute */
+    rodata  PT_LOAD    FLAGS(0x04); /* Read */
+    data    PT_LOAD    FLAGS(0x06); /* Read | Write */
 }
 
+SECTIONS
+{
+    /* Higher-Half Kernel Base Address */
+    . = 0xFFFFFFFF80000000;
+
+    .text : ALIGN(4K) {
+        *(.text .text.*)
+    } :text
+
+    .rodata : ALIGN(4K) {
+        *(.rodata .rodata.*)
+    } :rodata
+
+    .data : ALIGN(4K) {
+        *(.data .data.*)
+    } :data
+
+    .bss : ALIGN(4K) {
+        *(COMMON)
+        *(.bss .bss.*)
+    } :data
+}

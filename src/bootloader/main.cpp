@@ -1,20 +1,44 @@
-// Module description: AxiomOS UEFI Bootloader.
-// Architecture: x86_64
-// Safety: This code runs in the UEFI environment and is responsible for
-//         the initial hardware setup, loading the kernel, and transitioning
-//         the system to a state suitable for the kernel to take over.
-#include "axiomos/bootinfo.hpp"
 #include "axiomos/uefi.hpp"
+#include "axiomos/bootinfo.hpp"
 #include "axiomos/elf.hpp"
-#include <stddef.h>
-#include <stdint.h>
 
 using namespace axiom::uefi;
-using namespace axiom::elf;
+using namespace axiom;
 
-// ============================================================================
-// GUID Definitions
-// ============================================================================
+// ====================================================================
+// 1. Freestanding C/C++ Replacements
+// ====================================================================
+extern "C" {
+void* memset(void* s, int c, size_t n) {
+    unsigned char* p = static_cast<unsigned char*>(s);
+    for (size_t i = 0; i < n; ++i) p[i] = static_cast<unsigned char>(c);
+    return s;
+}
+
+void* memcpy(void* dest, const void* src, size_t n) {
+    unsigned char* d = static_cast<unsigned char*>(dest);
+    const unsigned char* s = static_cast<const unsigned char*>(src);
+    for (size_t i = 0; i < n; ++i) d[i] = s[i];
+    return dest;
+}
+
+int memcmp(const void* s1, const void* s2, size_t n) {
+    const unsigned char* p1 = static_cast<const unsigned char*>(s1);
+    const unsigned char* p2 = static_cast<const unsigned char*>(s2);
+    for (size_t i = 0; i < n; ++i) {
+        if (p1[i] != p2[i]) return p1[i] < p2[i] ? -1 : 1;
+    }
+    return 0;
+}
+} // extern "C"
+
+// ====================================================================
+// 2. Global State & GUIDs
+// ====================================================================
+namespace {
+
+EFI_SYSTEM_TABLE* gST = nullptr;
+EFI_BOOT_SERVICES_FULL* gBS = nullptr;
 
 static const EFI_GUID EFI_GRAPHICS_OUTPUT_PROTOCOL_GUID =
     {0x9042a9de, 0x23dc, 0x4a38, {0x96, 0xfb, 0x7a, 0xde, 0xd0, 0x80, 0x51, 0x6a}};
@@ -25,382 +49,301 @@ static const EFI_GUID EFI_SIMPLE_FILE_SYSTEM_PROTOCOL_GUID =
 static const EFI_GUID EFI_LOADED_IMAGE_PROTOCOL_GUID =
     {0x5B1B31A1, 0x9562, 0x11d2, {0x8E, 0x3F, 0x00, 0xA0, 0xC9, 0x69, 0x72, 0x3B}};
 
-// ============================================================================
-// Minimal Standard Library for Freestanding Environment
-// ============================================================================
+static const EFI_GUID ACPI_20_TABLE_GUID =
+    {0x8868E871, 0xE4F1, 0x11D3, {0xBC, 0x22, 0x00, 0x80, 0xC7, 0x3C, 0x88, 0x81}};
 
-extern "C" {
-    void* memcpy(void* dest, const void* src, size_t n) {
-        char* d = (char*)dest;
-        const char* s = (const char*)src;
-        for (size_t i = 0; i < n; i++) d[i] = s[i];
-        return dest;
-    }
-
-    void* memset(void* s, int c, size_t n) {
-        unsigned char* p = (unsigned char*)s;
-        for (size_t i = 0; i < n; i++) p[i] = (unsigned char)c;
-        return s;
-    }
-
-    int memcmp(const void* s1, const void* s2, size_t n) {
-        const unsigned char* p1 = (const unsigned char*)s1;
-        const unsigned char* p2 = (const unsigned char*)s2;
-        for (size_t i = 0; i < n; i++) {
-            if (p1[i] != p2[i]) return p1[i] - p2[i];
-        }
-        return 0;
-    }
-}
-
-// ============================================================================
-// Page Table Structures
-// ============================================================================
-
-struct PageTableEntry {
-    uint64_t present : 1;
-    uint64_t rw : 1;
-    uint64_t user : 1;
-    uint64_t pwt : 1;
-    uint64_t pcd : 1;
-    uint64_t accessed : 1;
-    uint64_t dirty : 1;
-    uint64_t huge : 1; // 1 for 2MB/1GB pages
-    uint64_t global : 1;
-    uint64_t available : 3;
-    uint64_t address : 40;
-    uint64_t available2 : 11;
-    uint64_t nx : 1;
-} __attribute__((packed));
-
-struct PageTable {
-    PageTableEntry entries[512];
-} __attribute__((aligned(4096)));
-
-// ============================================================================
-// Bootloader State
-// ============================================================================
-
-EFI_SYSTEM_TABLE* gST = nullptr;
-EFI_BOOT_SERVICES* gBS = nullptr;
-
+// ====================================================================
+// 3. Helpers
+// ====================================================================
 void Print(const int16_t* str) {
-    if (gST && gST->ConsoleOut) {
-        gST->ConsoleOut->OutputString(gST->ConsoleOut, str);
+    if (gST && gST->ConOut) {
+        gST->ConOut->OutputString(gST->ConOut, str);
     }
 }
 
-void PrintHex(uint64_t value) {
-    int16_t buffer[20];
-    int idx = 0;
-    buffer[idx++] = '0';
-    buffer[idx++] = 'x';
-
-    for (int i = 15; i >= 0; i--) {
-        int nibble = (value >> (i * 4)) & 0xF;
-        if (nibble < 10) buffer[idx++] = '0' + nibble;
-        else buffer[idx++] = 'A' + (nibble - 10);
+void PrintHex(uint64_t val) {
+    int16_t buf[19];
+    buf[0] = u'0';
+    buf[1] = u'x';
+    buf[18] = 0;
+    for (int i = 17; i >= 2; --i) {
+        int nibble = val & 0xF;
+        if (nibble < 10) buf[i] = u'0' + nibble;
+        else buf[i] = u'a' + (nibble - 10);
+        val >>= 4;
     }
-    buffer[idx++] = '\r';
-    buffer[idx++] = '\n';
-    buffer[idx] = 0;
-    Print(buffer);
+    Print(buf);
+    Print((const int16_t*)u"\r\n");
 }
 
-// ============================================================================
-// Helper Functions
-// ============================================================================
+[[noreturn]] void Panic(const int16_t* msg) {
+    Print((const int16_t*)u"\r\n[BOOTLOADER PANIC] ");
+    Print(msg);
+    Print((const int16_t*)u"\r\n");
+    while (true) __asm__ volatile("hlt");
+}
 
 EFI_STATUS GetFileHandle(EFI_HANDLE image_handle, const int16_t* path, EFI_FILE_PROTOCOL** out_file) {
-    EFI_STATUS status;
-
-    // 1. Get Loaded Image Protocol to find the device handle
-    void* loaded_image_void = nullptr;
-    status = gBS->HandleProtocol(image_handle, (EFI_GUID*)&EFI_LOADED_IMAGE_PROTOCOL_GUID, &loaded_image_void);
+    EFI_LOADED_IMAGE_PROTOCOL* loaded_image = nullptr;
+    EFI_STATUS status = gBS->HandleProtocol(
+        image_handle,
+        const_cast<EFI_GUID*>(&EFI_LOADED_IMAGE_PROTOCOL_GUID),
+        reinterpret_cast<void**>(&loaded_image)
+    );
     if (status != EFI_SUCCESS) return status;
 
-    // We have to cast void* to a struct that has DeviceHandle as the first member or define LoadedImage protocol.
-    // Hack: LoadedImageProtocol's first two members are Revision and ParentHandle, then SystemTable, then DeviceHandle.
-    // Let's define a minimal struct or interpret memory carefully.
-    // Actually, let's just create a struct locally.
-    struct EFI_LOADED_IMAGE_PROTOCOL_MIN {
-        uint32_t Revision;
-        EFI_HANDLE ParentHandle;
-        EFI_SYSTEM_TABLE* SystemTable;
-        EFI_HANDLE DeviceHandle;
-    };
-    auto* loaded_image = (EFI_LOADED_IMAGE_PROTOCOL_MIN*)loaded_image_void;
-
-    // 2. Open Simple File System on that device
-    void* fs_void = nullptr;
-    status = gBS->HandleProtocol(loaded_image->DeviceHandle, (EFI_GUID*)&EFI_SIMPLE_FILE_SYSTEM_PROTOCOL_GUID, &fs_void);
+    EFI_SIMPLE_FILE_SYSTEM_PROTOCOL* fs = nullptr;
+    status = gBS->HandleProtocol(
+        loaded_image->DeviceHandle,
+        const_cast<EFI_GUID*>(&EFI_SIMPLE_FILE_SYSTEM_PROTOCOL_GUID),
+        reinterpret_cast<void**>(&fs)
+    );
     if (status != EFI_SUCCESS) return status;
 
-    auto* fs = (EFI_SIMPLE_FILE_SYSTEM_PROTOCOL*)fs_void;
-
-    // 3. Open Volume
     EFI_FILE_PROTOCOL* root = nullptr;
     status = fs->OpenVolume(fs, &root);
     if (status != EFI_SUCCESS) return status;
 
-    // 4. Open File
-    status = root->Open(root, out_file, path, EFI_FILE_MODE_READ, 0);
-    return status;
+    return root->Open(root, out_file, path, 0x01, 0); // Read-only
 }
 
-// ============================================================================
-// ELF Loader
-// ============================================================================
+// Memory mapping definitions for Page Tables
+constexpr uint64_t PAGE_SIZE = 4096;
+constexpr uint64_t PAGE_PRESENT = 0b1;
+constexpr uint64_t PAGE_RW = 0b10;
+constexpr uint64_t PAGE_HUGE = 0b10000000;
 
-Elf64_Phdr* gKernelPhdrs = nullptr;
-uint16_t gKernelPhdrCount = 0;
-uint64_t gKernelEntry = 0;
+void MapPage(uint64_t* pml4, uint64_t vaddr, uint64_t paddr, uint64_t flags) {
+    uint64_t pml4_idx = (vaddr >> 39) & 0x1FF;
+    uint64_t pdpt_idx = (vaddr >> 30) & 0x1FF;
+    uint64_t pd_idx   = (vaddr >> 21) & 0x1FF;
+    uint64_t pt_idx   = (vaddr >> 12) & 0x1FF;
 
-// We use an extern C linkage for the main UEFI entry point.
-// We target PE/COFF format (x86_64-unknown-windows triple) for UEFI compatibility.
-extern "C" {
+    if (!(pml4[pml4_idx] & PAGE_PRESENT)) {
+        EFI_PHYSICAL_ADDRESS new_pdpt;
+        if (gBS->AllocatePages(AllocateAnyPages, EfiLoaderData, 1, &new_pdpt) != EFI_SUCCESS) Panic((const int16_t*)u"Failed to allocate PDPT");
+        memset((void*)new_pdpt, 0, PAGE_SIZE);
+        // Important: Mask out everything except physical address for next table
 
-EFI_STATUS efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE* system_table) {
+        pml4[pml4_idx] = (new_pdpt & ~(PAGE_SIZE - 1)) | PAGE_PRESENT | PAGE_RW;
+    }
+
+    uint64_t* pdpt = (uint64_t*)(pml4[pml4_idx] & ~(PAGE_SIZE - 1));
+
+    if (!(pdpt[pdpt_idx] & PAGE_PRESENT)) {
+        EFI_PHYSICAL_ADDRESS new_pd;
+        if (gBS->AllocatePages(AllocateAnyPages, EfiLoaderData, 1, &new_pd) != EFI_SUCCESS) Panic((const int16_t*)u"Failed to allocate PD");
+        memset((void*)new_pd, 0, PAGE_SIZE);
+
+        pdpt[pdpt_idx] = (new_pd & ~(PAGE_SIZE - 1)) | PAGE_PRESENT | PAGE_RW;
+    }
+
+    uint64_t* pd = (uint64_t*)(pdpt[pdpt_idx] & ~(PAGE_SIZE - 1));
+
+    if (!(pd[pd_idx] & PAGE_PRESENT)) {
+        EFI_PHYSICAL_ADDRESS new_pt;
+        if (gBS->AllocatePages(AllocateAnyPages, EfiLoaderData, 1, &new_pt) != EFI_SUCCESS) Panic((const int16_t*)u"Failed to allocate PT");
+        memset((void*)new_pt, 0, PAGE_SIZE);
+
+        pd[pd_idx] = (new_pt & ~(PAGE_SIZE - 1)) | PAGE_PRESENT | PAGE_RW;
+    }
+
+    uint64_t* pt = (uint64_t*)(pd[pd_idx] & ~(PAGE_SIZE - 1));
+
+
+    pt[pt_idx] = (paddr & ~(PAGE_SIZE - 1)) | flags;
+}
+
+} // anonymous namespace
+
+// ====================================================================
+// 4. Main Entry Point
+// ====================================================================
+extern "C" EFI_STATUS EFIAPI efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE* system_table) {
     gST = system_table;
     gBS = system_table->BootServices;
 
-    // Clear screen
-    if (gST->ConsoleOut->ClearScreen) {
-        gST->ConsoleOut->ClearScreen(gST->ConsoleOut);
+    if (gST->ConOut && gST->ConOut->ClearScreen) {
+        gST->ConOut->ClearScreen(gST->ConOut);
     }
 
-    Print((const int16_t*)u"AxiomOS Bootloader Starting...\r\n");
+    Print((const int16_t*)u"AxiomOS Bootloader Initializing...\r\n");
 
-    // 1. Initialize GOP
+    // 1. Setup GOP
     EFI_GRAPHICS_OUTPUT_PROTOCOL* gop = nullptr;
-    EFI_STATUS status = gBS->LocateProtocol((EFI_GUID*)&EFI_GRAPHICS_OUTPUT_PROTOCOL_GUID, nullptr, (void**)&gop);
-    if (status != EFI_SUCCESS) {
-        Print((const int16_t*)u"GOP Not Found!\r\n");
-        return status;
-    }
-
-    Print((const int16_t*)u"GOP Initialized\r\n");
+    EFI_STATUS status = gBS->LocateProtocol(
+        const_cast<EFI_GUID*>(&EFI_GRAPHICS_OUTPUT_PROTOCOL_GUID),
+        nullptr,
+        reinterpret_cast<void**>(&gop)
+    );
+    if (status != EFI_SUCCESS) Panic((const int16_t*)u"Failed to locate GOP.");
 
     // 2. Load Kernel File
     EFI_FILE_PROTOCOL* kernel_file = nullptr;
     status = GetFileHandle(image_handle, (const int16_t*)u"kernel", &kernel_file);
-    if (status != EFI_SUCCESS) {
-        Print((const int16_t*)u"Kernel file not found! (Tried 'kernel')\r\n");
-        return status;
+    if (status != EFI_SUCCESS) Panic((const int16_t*)u"Failed to open kernel file. Is it in the root directory?");
+
+    // 3. Read ELF Header
+    axiom::elf::Elf64_Ehdr ehdr;
+    size_t ehdr_size = sizeof(ehdr);
+    status = kernel_file->Read(kernel_file, &ehdr_size, &ehdr);
+    if (status != EFI_SUCCESS || ehdr_size != sizeof(ehdr) ||
+        ehdr.e_ident[0] != axiom::elf::ELFMAG0 || ehdr.e_ident[1] != axiom::elf::ELFMAG1 ||
+        ehdr.e_ident[2] != axiom::elf::ELFMAG2 || ehdr.e_ident[3] != axiom::elf::ELFMAG3) {
+        Panic((const int16_t*)u"Invalid or corrupt ELF header.");
     }
 
-    // Read ELF header to find entry and segments
-    Elf64_Ehdr ehdr;
-    uint64_t size = sizeof(ehdr);
-    kernel_file->Read(kernel_file, &size, &ehdr);
-    gKernelEntry = ehdr.e_entry;
-    gKernelPhdrCount = ehdr.e_phnum;
+    // 4. Create PML4 Base
+    EFI_PHYSICAL_ADDRESS pml4_base;
+    if (gBS->AllocatePages(AllocateAnyPages, EfiLoaderData, 1, &pml4_base) != EFI_SUCCESS) Panic((const int16_t*)u"Failed to allocate PML4 base.");
+    memset((void*)pml4_base, 0, PAGE_SIZE);
+    uint64_t* pml4 = (uint64_t*)pml4_base;
 
-    // Read Program Headers for storage
-    uint64_t phdr_total_size = ehdr.e_phnum * ehdr.e_phentsize;
-    gBS->AllocatePool(EfiLoaderData, phdr_total_size, (void**)&gKernelPhdrs);
-    kernel_file->SetPosition(kernel_file, ehdr.e_phoff);
-    kernel_file->Read(kernel_file, &phdr_total_size, gKernelPhdrs);
+    // 5. Load PT_LOAD Segments
+    for (int i = 0; i < ehdr.e_phnum; ++i) {
+        axiom::elf::Elf64_Phdr phdr;
+        size_t phdr_size = sizeof(phdr);
+        kernel_file->SetPosition(kernel_file, ehdr.e_phoff + (i * ehdr.e_phentsize));
+        kernel_file->Read(kernel_file, &phdr_size, &phdr);
 
-    // Load Segments
-    Print((const int16_t*)u"Loading Kernel Segments...\r\n");
-    for (int i = 0; i < gKernelPhdrCount; i++) {
-        if (gKernelPhdrs[i].p_type == PT_LOAD) {
-            uint64_t mem_size = gKernelPhdrs[i].p_memsz;
-            uint64_t pages = (mem_size + 4095) / 4096;
-            EFI_PHYSICAL_ADDRESS phys_addr = 0;
+                if (phdr.p_type == axiom::elf::PT_LOAD) {
+            uint64_t vaddr = phdr.p_vaddr;
+            uint64_t memsz = phdr.p_memsz;
+            uint64_t filesz = phdr.p_filesz;
+            uint64_t offset = phdr.p_offset;
 
-            status = gBS->AllocatePages(AllocateAnyPages, EfiLoaderCode, pages, &phys_addr);
-            if (status != EFI_SUCCESS) {
-                Print((const int16_t*)u"Allocation failed\r\n");
-                while(1);
+            // Calculate page-aligned addresses
+            uint64_t vaddr_aligned = vaddr & ~(PAGE_SIZE - 1);
+            // deleted offset_aligned
+            uint64_t diff = vaddr - vaddr_aligned; // Offset into the first page
+
+            size_t pages = (memsz + diff + PAGE_SIZE - 1) / PAGE_SIZE;
+
+            EFI_PHYSICAL_ADDRESS alloc_addr;
+            if (gBS->AllocatePages(AllocateAnyPages, EfiLoaderData, pages, &alloc_addr) != EFI_SUCCESS) Panic((const int16_t*)u"Failed to allocate memory for ELF segment.");
+
+            // Read file into allocated memory at the correct offset
+            kernel_file->SetPosition(kernel_file, offset);
+            kernel_file->Read(kernel_file, &filesz, (void*)(alloc_addr + diff));
+
+            // Zero out remaining memsz
+            if (memsz > filesz) {
+                memset((void*)(alloc_addr + diff + filesz), 0, memsz - filesz);
             }
 
-            // Store the physical address in the phdr so we know where we put it
-            // (Original p_paddr might be 0 or virtual, we overwrite it with actual physical)
-            gKernelPhdrs[i].p_paddr = phys_addr;
-
-            // Zero memory
-            memset((void*)phys_addr, 0, mem_size);
-
-            // Load data
-            kernel_file->SetPosition(kernel_file, gKernelPhdrs[i].p_offset);
-            uint64_t file_size = gKernelPhdrs[i].p_filesz;
-            kernel_file->Read(kernel_file, &file_size, (void*)phys_addr);
-
-            PrintHex(gKernelPhdrs[i].p_vaddr);
-            Print((const int16_t*)u" mapped to ");
-            PrintHex(phys_addr);
+            // Map the loaded segment to its higher-half virtual address
+            for (size_t p = 0; p < pages * PAGE_SIZE; p += PAGE_SIZE) {
+                MapPage(pml4, vaddr_aligned + p, alloc_addr + p, PAGE_PRESENT | PAGE_RW); // Also identity map it briefly to jump if needed
+                MapPage(pml4, alloc_addr + p, alloc_addr + p, PAGE_PRESENT | PAGE_RW);
+            }
         }
     }
+
     kernel_file->Close(kernel_file);
 
-    // 3. Prepare Page Tables
-    // We need a PML4, a PDPT, and a PD/PT.
-    // We will identity map the first 4GB (covering UEFI and our load addresses)
-    // And map the kernel higher half.
+    Print((const int16_t*)u"Kernel segments loaded and mapped. Constructing BootInfo...\r\n");
 
-    EFI_PHYSICAL_ADDRESS pml4_phys = 0;
-    gBS->AllocatePages(AllocateAnyPages, EfiLoaderData, 1, &pml4_phys);
-    PageTable* pml4 = (PageTable*)pml4_phys;
-    memset(pml4, 0, sizeof(PageTable));
+    // 6. Construct BootInfo
+    BootInfo* bootinfo = nullptr;
+    EFI_PHYSICAL_ADDRESS bootinfo_addr;
+    if (gBS->AllocatePages(AllocateAnyPages, EfiLoaderData, 1, &bootinfo_addr) != EFI_SUCCESS) Panic((const int16_t*)u"Failed to allocate BootInfo.");
+    bootinfo = (BootInfo*)bootinfo_addr;
 
-    // Identity Map (0-4GB) using 1GB pages if possible, or 2MB pages
-    // For simplicity, let's use a PDPT for the first 512GB entry (Index 0 of PML4)
-    EFI_PHYSICAL_ADDRESS pdpt_low_phys = 0;
-    gBS->AllocatePages(AllocateAnyPages, EfiLoaderData, 1, &pdpt_low_phys);
-    PageTable* pdpt_low = (PageTable*)pdpt_low_phys;
-    memset(pdpt_low, 0, sizeof(PageTable));
+    bootinfo->framebuffer.base = (void*)gop->Mode->frame_buffer_base;
+    bootinfo->framebuffer.size = gop->Mode->frame_buffer_size;
+    bootinfo->framebuffer.width = gop->Mode->info->horizontal_resolution;
+    bootinfo->framebuffer.height = gop->Mode->info->vertical_resolution;
+    bootinfo->framebuffer.pixels_per_scanline = gop->Mode->info->pixels_per_scan_line;
 
-    pml4->entries[0].present = 1;
-    pml4->entries[0].rw = 1;
-    pml4->entries[0].address = pdpt_low_phys >> 12;
-
-    // Map first 4GB using 2MB pages
-    for (int i = 0; i < 4; i++) {
-        EFI_PHYSICAL_ADDRESS pd_phys = 0;
-        gBS->AllocatePages(AllocateAnyPages, EfiLoaderData, 1, &pd_phys);
-        PageTable* pd = (PageTable*)pd_phys;
-        memset(pd, 0, sizeof(PageTable));
-
-        pdpt_low->entries[i].present = 1;
-        pdpt_low->entries[i].rw = 1;
-        pdpt_low->entries[i].address = pd_phys >> 12;
-
-        for (int j = 0; j < 512; j++) {
-            pd->entries[j].present = 1;
-            pd->entries[j].rw = 1;
-            pd->entries[j].huge = 1; // 2MB page
-            pd->entries[j].address = (uint64_t)((i * 512 + j) * 0x200000) >> 12;
+    bootinfo->rsdp = nullptr;
+    for (size_t i = 0; i < gST->NumberOfTableEntries; ++i) {
+        if (memcmp(&gST->ConfigurationTable[i].VendorGuid, &ACPI_20_TABLE_GUID, sizeof(EFI_GUID)) == 0) {
+            bootinfo->rsdp = gST->ConfigurationTable[i].VendorTable;
+            break;
         }
     }
 
-    // High Map (Kernel)
-    // Kernel vaddr: 0xFFFFFFFF80000000
-    // PML4 Index: 511
-    // PDPT Index: 510
-    // PD Index: 0 (for 80000000) onwards
+    // 7. Map the first 4 GiB (Identity Map using 2MB huge pages)
+    Print((const int16_t*)u"Identity mapping first 4GB...\r\n");
+    for (uint64_t p = 0; p < 0x100000000; p += 0x200000) {
+        uint64_t pml4_idx = (p >> 39) & 0x1FF;
+        uint64_t pdpt_idx = (p >> 30) & 0x1FF;
+        uint64_t pd_idx   = (p >> 21) & 0x1FF;
 
-    // We need a PDPT for PML4[511]
-    EFI_PHYSICAL_ADDRESS pdpt_high_phys = 0;
-    gBS->AllocatePages(AllocateAnyPages, EfiLoaderData, 1, &pdpt_high_phys);
-    PageTable* pdpt_high = (PageTable*)pdpt_high_phys;
-    memset(pdpt_high, 0, sizeof(PageTable));
+        if (!(pml4[pml4_idx] & PAGE_PRESENT)) {
+            EFI_PHYSICAL_ADDRESS new_pdpt;
+            gBS->AllocatePages(AllocateAnyPages, EfiLoaderData, 1, &new_pdpt);
+            memset((void*)new_pdpt, 0, PAGE_SIZE);
 
-    pml4->entries[511].present = 1;
-    pml4->entries[511].rw = 1;
-    pml4->entries[511].address = pdpt_high_phys >> 12;
-
-    // We need a PD for PDPT[510]
-    EFI_PHYSICAL_ADDRESS pd_high_phys = 0;
-    gBS->AllocatePages(AllocateAnyPages, EfiLoaderData, 1, &pd_high_phys);
-    PageTable* pd_high = (PageTable*)pd_high_phys;
-    memset(pd_high, 0, sizeof(PageTable));
-
-    pdpt_high->entries[510].present = 1;
-    pdpt_high->entries[510].rw = 1;
-    pdpt_high->entries[510].address = pd_high_phys >> 12;
-
-    // Now map the kernel segments
-    for (int i = 0; i < gKernelPhdrCount; i++) {
-        if (gKernelPhdrs[i].p_type == PT_LOAD) {
-            uint64_t vaddr = gKernelPhdrs[i].p_vaddr;
-            uint64_t paddr = gKernelPhdrs[i].p_paddr; // This is the REAL physical address we allocated
-            uint64_t size = gKernelPhdrs[i].p_memsz;
-
-            uint64_t start = vaddr;
-            uint64_t end = vaddr + size;
-
-            for (uint64_t cur = start; cur < end; cur += 4096) {
-                // Calculate indices relative to 0xFFFFFFFF80000000
-                uint64_t offset = cur - 0xFFFFFFFF80000000ULL;
-                uint64_t pd_idx = (offset >> 21) & 0x1FF;
-                uint64_t pt_idx = (offset >> 12) & 0x1FF;
-
-                // Allocate PT if not present
-                if (pd_high->entries[pd_idx].present == 0) {
-                    EFI_PHYSICAL_ADDRESS pt_phys = 0;
-                    gBS->AllocatePages(AllocateAnyPages, EfiLoaderData, 1, &pt_phys);
-                    memset((void*)pt_phys, 0, 4096);
-
-                    pd_high->entries[pd_idx].present = 1;
-                    pd_high->entries[pd_idx].rw = 1;
-                    pd_high->entries[pd_idx].address = pt_phys >> 12;
-                }
-
-                PageTable* pt = (PageTable*)((uint64_t)pd_high->entries[pd_idx].address << 12);
-
-                uint64_t page_offset = cur - start;
-                uint64_t page_phys = paddr + page_offset;
-
-                pt->entries[pt_idx].present = 1;
-                pt->entries[pt_idx].rw = 1;
-                pt->entries[pt_idx].address = page_phys >> 12;
-            }
+            pml4[pml4_idx] = (new_pdpt & ~(PAGE_SIZE - 1)) | PAGE_PRESENT | PAGE_RW;
         }
+
+        uint64_t* pdpt = (uint64_t*)(pml4[pml4_idx] & ~(PAGE_SIZE - 1));
+
+        if (!(pdpt[pdpt_idx] & PAGE_PRESENT)) {
+            EFI_PHYSICAL_ADDRESS new_pd;
+            gBS->AllocatePages(AllocateAnyPages, EfiLoaderData, 1, &new_pd);
+            memset((void*)new_pd, 0, PAGE_SIZE);
+
+            pdpt[pdpt_idx] = (new_pd & ~(PAGE_SIZE - 1)) | PAGE_PRESENT | PAGE_RW;
+        }
+
+        uint64_t* pd = (uint64_t*)(pdpt[pdpt_idx] & ~(PAGE_SIZE - 1));
+
+        pd[pd_idx] = (p & ~0x1FFFFF) | PAGE_PRESENT | PAGE_RW | PAGE_HUGE;
     }
 
-    // 4. Memory Map
-    uint64_t map_size = 0;
-    uint64_t map_key = 0;
-    uint64_t desc_size = 0;
+    // 8. Memory Map & Handoff
+    Print((const int16_t*)u"Getting UEFI Memory Map...\r\n");
+    size_t map_size = 0, map_key = 0, desc_size = 0;
     uint32_t desc_version = 0;
 
     gBS->GetMemoryMap(&map_size, nullptr, &map_key, &desc_size, &desc_version);
-    map_size += 2 * 4096; // Add some slack
 
-    void* map_buffer = nullptr;
-    gBS->AllocatePool(EfiLoaderData, map_size, &map_buffer);
+    // Add generous slack space for allocations made during map acquisition
+    map_size += desc_size * 8;
+    EFI_PHYSICAL_ADDRESS mmap_addr;
+    if (gBS->AllocatePages(AllocateAnyPages, EfiLoaderData, (map_size / PAGE_SIZE) + 1, &mmap_addr) != EFI_SUCCESS) Panic((const int16_t*)u"Failed to allocate Memory Map buffer.");
+    EFI_MEMORY_DESCRIPTOR* memory_map = (EFI_MEMORY_DESCRIPTOR*)mmap_addr;
 
-    status = gBS->GetMemoryMap(&map_size, map_buffer, &map_key, &desc_size, &desc_version);
-    if (status != EFI_SUCCESS) {
-        Print((const int16_t*)u"Failed to get memory map\r\n");
-        while(1);
-    }
+    status = gBS->GetMemoryMap(&map_size, memory_map, &map_key, &desc_size, &desc_version);
+    if (status != EFI_SUCCESS) Panic((const int16_t*)u"Failed to get memory map");
 
-    // 5. Exit Boot Services
+    bootinfo->mmap = (axiom::MemoryDescriptor*)memory_map;
+    bootinfo->mmap_size = map_size;
+    bootinfo->mmap_desc_size = desc_size;
+
+    Print((const int16_t*)u"Exiting Boot Services and jumping to Kernel...\r\n");
+
+    // --- DEBUG DUMP ---
+    Print((const int16_t*)u"PML4 Base: ");
+    PrintHex(pml4_base);
+    Print((const int16_t*)u"PML4[0] (Identity): ");
+    PrintHex(pml4[0]);
+    Print((const int16_t*)u"PML4[511] (Higher-Half): ");
+    PrintHex(pml4[511]);
+    Print((const int16_t*)u"Kernel Entry Point: ");
+    PrintHex(ehdr.e_entry);
+    // ------------------
+
     status = gBS->ExitBootServices(image_handle, map_key);
     if (status != EFI_SUCCESS) {
-        // Retry logic as per spec (map key might have changed)
-        gBS->GetMemoryMap(&map_size, map_buffer, &map_key, &desc_size, &desc_version);
-        gBS->ExitBootServices(image_handle, map_key);
+        // ExitBootServices can fail if an interrupt occurred and allocations changed the map.
+        // The standard is to fetch the memory map ONE MORE TIME and retry.
+        gBS->GetMemoryMap(&map_size, memory_map, &map_key, &desc_size, &desc_version);
+        status = gBS->ExitBootServices(image_handle, map_key);
+        if (status != EFI_SUCCESS) Panic((const int16_t*)u"ExitBootServices failed on retry");
     }
 
-    // 6. Switch Page Tables
-    // Load CR3
-    asm volatile("mov %0, %%cr3" : : "r"(pml4_phys));
+    // Load the NEW PML4 into CR3 to activate higher-half kernel mapping
+    __asm__ volatile("mov %0, %%cr3" : : "r"(pml4_base));
 
-    // 7. Prepare BootInfo
-    axiom::BootInfo boot_info;
-    boot_info.framebuffer_base = gop->Mode->FrameBufferBase;
-    boot_info.framebuffer_size = gop->Mode->FrameBufferSize;
-    boot_info.framebuffer_width = gop->Mode->Info->HorizontalResolution;
-    boot_info.framebuffer_height = gop->Mode->Info->VerticalResolution;
-    boot_info.framebuffer_stride = gop->Mode->Info->PixelsPerScanLine;
+    using KernelEntryType = void(__attribute__((sysv_abi)) *)(BootInfo*);
+    KernelEntryType KernelEntry = (KernelEntryType) ehdr.e_entry;
+    KernelEntry(bootinfo);
 
-    // Determine format
-    if (gop->Mode->Info->PixelFormat == 1) { // PixelRedGreenBlueReserved8BitPerColor
-        boot_info.framebuffer_format = 1;
-    } else if (gop->Mode->Info->PixelFormat == 2) { // PixelBlueGreenRedReserved8BitPerColor
-        boot_info.framebuffer_format = 2;
-    } else {
-        boot_info.framebuffer_format = 0;
-    }
+    // We should never reach here if the kernel is well-behaved.
+    while(true) { __asm__ volatile("cli; hlt"); }
 
-    boot_info.efi_memory_map = (axiom::EfiMemoryDescriptor*)map_buffer;
-    boot_info.efi_memory_map_size = map_size;
-    boot_info.efi_descriptor_size = desc_size;
-    boot_info.efi_descriptor_version = desc_version;
-    boot_info.kernel_entry = gKernelEntry;
-
-    // 8. Jump to Kernel
-    typedef void (*KernelEntry)(axiom::BootInfo*);
-    KernelEntry kentry = (KernelEntry)gKernelEntry;
-
-    kentry(&boot_info);
-
-    while(1);
     return EFI_SUCCESS;
 }
-
-} // extern "C"

@@ -44,18 +44,21 @@ While the project targets this specific hardware, the goal is to remain as platf
 
 ### Build Steps
 
-1.  **Clone the repository:**
+1. **Clone the repository:**
+
     ```sh
     git clone https://github.com/your-username/AxiomOS.git
     cd AxiomOS
     ```
 
-2.  **Configure the build:**
+2. **Configure the build:**
+
     ```sh
     cmake -B build
     ```
 
-3.  **Compile the code:**
+3. **Compile the code:**
+
     ```sh
     cmake --build build
     ```
