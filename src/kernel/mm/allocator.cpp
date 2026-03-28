@@ -1,5 +1,5 @@
-#include "axiomos/mm/allocator.hpp"
-#include "axiomos/bootinfo.hpp"
+#include "axiom/mm/allocator.hpp"
+#include "axiom/boot/info.hpp"
 
 namespace axiom::mm {
 

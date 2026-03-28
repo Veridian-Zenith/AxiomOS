@@ -1,7 +1,7 @@
 #pragma once
 #include <stdint.h>
 
-namespace axiom::arch::x86_64 {
+namespace axiom::arch::x64 {
 
 inline void outb(uint16_t port, uint8_t val) {
     __asm__ volatile("outb %0, %1" : : "a"(val), "Nd"(port));
@@ -13,4 +13,4 @@ inline uint8_t inb(uint16_t port) {
     return ret;
 }
 
-} // namespace axiom::arch::x86_64
+} // namespace axiom::arch::x64

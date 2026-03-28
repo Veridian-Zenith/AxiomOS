@@ -1,5 +1,5 @@
 #pragma once
-#include "axiomos/bootinfo.hpp"
+#include "axiom/boot/info.hpp"
 
 namespace axiom::mm {
     void init(const BootInfo* info);

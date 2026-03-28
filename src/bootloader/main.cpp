@@ -1,6 +1,6 @@
-#include "axiomos/uefi.hpp"
-#include "axiomos/bootinfo.hpp"
-#include "axiomos/elf.hpp"
+#include "axiom/boot/uefi.hpp"
+#include "axiom/boot/info.hpp"
+#include "axiom/boot/elf.hpp"
 
 using namespace axiom::uefi;
 using namespace axiom;

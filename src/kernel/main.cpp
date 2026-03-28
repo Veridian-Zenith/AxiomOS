@@ -1,7 +1,7 @@
-#include "axiomos/bootinfo.hpp"
-#include "axiomos/utils/serial.hpp"
-#include "axiomos/x86_64.hpp"
-#include "axiomos/mm/allocator.hpp"
+#include "axiom/boot/info.hpp"
+#include "axiom/drivers/serial.hpp"
+#include "axiom/arch/x64/cpu.hpp"
+#include "axiom/mm/allocator.hpp"
 
 namespace {
 [[maybe_unused]] void PrintKernelInfo([[maybe_unused]] const axiom::BootInfo* info) {
@@ -33,14 +33,14 @@ extern "C" [[noreturn]] void kmain(axiom::BootInfo* info) {
 
     // 3. Hardware initialization
     serial::puts("[KERNEL] Initializing GDT/IDT/APIC...\n");
-    arch::x86_64::setupGdt();
-    arch::x86_64::setupIdt();
-    arch::x86_64::setupApic();
+    arch::x64::setupGdt();
+    arch::x64::setupIdt();
+    arch::x64::setupApic();
 
     serial::puts("[KERNEL] System initialized. Entering idle loop.\n");
 
     // 4. Final safety loop
     while (true) {
-        arch::x86_64::halt();
+        arch::x64::halt();
     }
 }

@@ -1,4 +1,4 @@
 #pragma once
-namespace axiom::arch::x86_64::apic {
+namespace axiom::arch::x64::apic {
     bool init();
 }

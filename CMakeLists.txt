@@ -41,10 +41,12 @@ set(KERNEL_FLAGS
 
 set(KERNEL_SOURCES
     src/kernel/main.cpp
-    src/kernel/utils/serial.cpp
-    src/kernel/arch/x86_64/entry.S
-    src/kernel/arch/x86_64/x86_64.cpp
-    src/kernel/arch/x86_64/apic.cpp
+    src/kernel/drivers/serial.cpp
+    src/kernel/arch/x64/entry.S
+    src/kernel/arch/x64/cpu.cpp
+    src/kernel/arch/x64/gdt.cpp
+    src/kernel/arch/x64/gdt.S
+    src/kernel/arch/x64/apic.cpp
     src/kernel/mm/allocator.cpp
 )
 
