@@ -1,5 +1,0 @@
-NAME        FSTYPE FSVER LABEL UUID                                 FSAVAIL FSUSE% MOUNTPOINTS
-zram0       swap   1     zram0 3d979bb8-08b9-4ad6-a455-6935c29fed06                [SWAP]
-nvme0n1                                                                            
-├─nvme0n1p1 vfat   FAT32       6A71-EF5A                               1,9G     7% /boot
-└─nvme0n1p2 xfs                deb36a21-06d3-4e1a-b4a2-c339ab66ae0c  111,8G    53% /

@@ -1,6 +1,0 @@
-Bus 001 Device 001: ID 1d6b:0002 Linux Foundation 2.0 root hub
-Bus 002 Device 001: ID 1d6b:0003 Linux Foundation 3.0 root hub
-Bus 003 Device 001: ID 1d6b:0002 Linux Foundation 2.0 root hub
-Bus 003 Device 002: ID 0408:5483 Quanta Computer, Inc. HP HD Camera
-Bus 003 Device 003: ID 0bda:b85c Realtek Semiconductor Corp. Bluetooth Radio
-Bus 004 Device 001: ID 1d6b:0003 Linux Foundation 3.0 root hub

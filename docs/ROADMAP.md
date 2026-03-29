@@ -1,66 +1,66 @@
-# AxiomOS Development Roadmap
+# AxiomOS: Strategic Roadmap
 
-This document outlines the strategic phases for building AxiomOS, a modern, resilient operating system targeting 12th Gen Intel (Alder Lake) hardware and utilizing C++26.
-
-## Phase 1: Minimal Bootable Kernel (Completed)
-
-**Goal:** Establish a functional, C++26-compliant foundation that boots into a higher-half kernel and provides serial output.
-
-* **Build System:** Pure LLVM/Clang/LLD toolchain with C++26 enabled (`-std=c++26`).
-* **Bootloader:** UEFI application that loads ELF kernels, constructs `BootInfo`, and identity-maps the lower 4GiB for transition.
-* **Kernel Foundation:**
-  * Higher-half mapping at `0xFFFFFFFF80000000`.
-  * Assembly entry point (`entry.S`) for System V ABI transition.
-  * Early UART 16550 serial driver for COM1 logging.
-* **Automation:** `run-qemu.sh` for integrated build-image-run workflows.
+This document defines the execution phases for **AxiomOS**, a performance-first, native operating system targeting **12th Gen Intel (Alder Lake)** hardware. Built exclusively with **C++26** and **LLVM 22.1**, the project rejects virtualization bloat in favor of direct hardware authority.
 
 ---
 
-## Phase 2: Architectural Setup (GDT/IDT/APIC)
+## ✅ Phase 1: Minimal Bootable Kernel (COMPLETED)
 
-**Goal:** Transition from firmware-provided settings to safe, kernel-managed CPU and interrupt states.
+**Goal:** Establish a functional foundation that boots into a higher-half kernel with serial diagnostics.
 
-* **GDT/TSS:** Initialize the Global Descriptor Table and Task State Segment for x86_64.
-* **IDT:** Implement the Interrupt Descriptor Table and handle mandatory hardware exceptions (Page Faults, GPF, etc.).
-* **APIC:** Setup the Local APIC and IOAPIC for modern interrupt management.
-* **Memory Purity:** Transition to kernel-owned page tables, discarding the temporary UEFI identity mappings.
-
----
-
-## Phase 3: Physical Memory Management (PMM)
-
-**Goal:** Implement a centralized physical memory allocator to manage system RAM.
-
-* **Memory Map Analysis:** Parse the UEFI memory map for usable RAM and reserved regions.
-* **Bitmap Allocator:** Implement a high-performance bitmap-based PMM.
-* **Page Primitives:** Provide `alloc_page()` and `free_page()` for subsequent memory layers.
+* **Toolchain:** Pure LLVM/Clang/LLD pipeline with `-std=c++26`.
+* **Bootloader:** UEFI application that loads ELF kernels and constructs `BootInfo`.
+* **Memory Transition:** Initial 4GiB identity-mapping to facilitate the jump to the higher-half.
+* **Kernel Entry:** Higher-half mapping at `0xFFFFFFFF80000000` with a System V ABI compliant entry point.
+* **Diagnostics:** Early UART 16550 serial driver for COM1 logging.
 
 ---
 
-## Phase 4: Virtual Memory Management (VMM)
+## 🛠 Phase 2: Architectural Setup
 
-**Goal:** Establish a higher-half virtual memory subsystem for kernel and user-space isolation.
+**Goal:** Transition from firmware-provided states to kernel-managed CPU and interrupt control.
 
-* **Recursive Paging:** Implement a robust mechanism for modifying page tables.
-* **Kernel Heap:** Establish a kernel-level heap with `kmalloc` / `kfree`.
-* **Dynamic Mapping:** Support on-the-fly mapping of hardware MMIO and memory regions.
-
----
-
-## Phase 5: Kernel Services & Multitasking
-
-**Goal:** Introduce task switching and basic process management.
-
-* **Context Switching:** Save and restore CPU states for multiple tasks.
-* **Prototypical Scheduler:** Initial round-robin scheduler for kernel threads.
-* **User Mode Preparation:** Define the system call interface and initial user-mode stack setup.
+* **CPU State:** Initialize the Global Descriptor Table (GDT) and Task State Segment (TSS) for x86_64.
+* **Interrupts:** Implement the Interrupt Descriptor Table (IDT) to handle mandatory exceptions like Page Faults and GPFs.
+* **APIC:** Setup Local APIC and IOAPIC for modern, high-performance interrupt management.
+* **Memory Purity:** Discard temporary UEFI mappings in favor of kernel-owned page tables.
 
 ---
 
-## Phase 6: Drivers & User Ecosystem (Future)
+## 🧠 Phase 3: Physical Memory Management (PMM)
 
-**Goal:** Expand hardware compatibility and establish the user-facing operating system.
+**Goal:** Implement a centralized physical memory allocator to manage raw system RAM.
 
-* **Storage Subsystem:** NVMe/AHCI support for persistent data.
-* **Input/Output:** USB 3.0 (xHCI) and Graphics (GOP) integration.
-* **Userspace Foundation:** Implementation of the initial user process and a minimal C++ standard library.
+* **Map Analysis:** Parse the UEFI memory map to identify usable RAM versus reserved hardware regions.
+* **Bitmap Allocator:** Implement a high-performance bitmap-based PMM for tracking page availability.
+* **Page Primitives:** Provide `alloc_page()` and `free_page()` as the foundation for higher-level memory layers.
+
+---
+
+## 🔒 Phase 4: Virtual Memory Management (VMM)
+
+**Goal:** Establish a robust virtual memory subsystem for isolation and dynamic mapping.
+
+* **Recursive Paging:** Implement a mechanism for the kernel to modify its own page tables efficiently.
+* **Kernel Heap:** Establish a kernel-level heap with `kmalloc` and `kfree` primitives.
+* **Dynamic Mapping:** Support on-the-fly mapping for MMIO (Memory Mapped I/O) and hardware regions.
+
+---
+
+## 🧵 Phase 5: Kernel Services & Multitasking
+
+**Goal:** Introduce task switching and hybrid-aware process management.
+
+* **Context Switching:** Implement save/restore logic for CPU registers across multiple tasks.
+* **Hybrid Scheduler:** Initial scheduler optimized for the **2 Performance cores** and **4 Efficiency cores** of the i3-1215U.
+* **User Mode:** Define the syscall interface and initial user-mode stack architecture.
+
+---
+
+## 💿 Phase 6: Drivers & User Ecosystem
+
+**Goal:** Expand native hardware compatibility and launch the initial user environment.
+
+* **Native Storage:** Implement high-performance **NVMe** support and a native **XFS** primary filesystem driver.
+* **I/O Subsystem:** USB 3.0 (xHCI) and Graphics (GOP/Intel Xe) integration.
+* **Userspace Foundation:** Launch the first user process and a minimal freestanding C++ standard library.
