@@ -17,12 +17,13 @@ AxiomOS is a rejection of modern software bloat. We don't do "virtual systems," 
 
 ---
 
-## 🚀 Current Status: Phase 1 (COMPLETED)
+## 🚀 Current Status: Phase 2 (IN PROGRESS)
 
-* **UEFI Bootloader:** Hand-written EFI application that handles ELF loading and memory map hand-off.
-* **Higher-Half Kernel:** Successfully mapped and executing at `0xFFFFFFFF80000000`.
-* **Early Logging:** UART 16550 serial driver for COM1 debug output.
-* **Memory PMM:** Bitmap-based physical memory allocator is operational.
+*   **UEFI Bootloader:** Hand-written EFI application that handles ELF loading and memory map hand-off.
+*   **Higher-Half Kernel:** Successfully mapped and executing at `0xFFFFFFFF80000000`.
+*   **Architectural Setup:** GDT, IDT, and basic APIC support initialized.
+*   **Early Logging:** UART 16550 serial driver for COM1 debug output.
+*   **Memory PMM:** Physical memory manager is the next major implementation goal.
 
 ---
 

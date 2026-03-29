@@ -16,28 +16,29 @@ This document defines the execution phases for **AxiomOS**, a performance-first,
 
 ---
 
-## 🛠 Phase 2: Architectural Setup
+## 🛠️ Phase 2: Architectural Setup (IN PROGRESS)
 
 **Goal:** Transition from firmware-provided states to kernel-managed CPU and interrupt control.
 
-* **CPU State:** Initialize the Global Descriptor Table (GDT) and Task State Segment (TSS) for x86_64.
-* **Interrupts:** Implement the Interrupt Descriptor Table (IDT) to handle mandatory exceptions like Page Faults and GPFs.
-* **APIC:** Setup Local APIC and IOAPIC for modern, high-performance interrupt management.
-* **Memory Purity:** Discard temporary UEFI mappings in favor of kernel-owned page tables.
+* **CPU State:** ✅ GDT and TSS initialization logic is implemented.
+* **Interrupts:** ✅ IDT is implemented to handle mandatory exceptions.
+* **APIC:** ✅ Basic setup for Local APIC and IOAPIC is in place.
+* **Memory Purity:** ❌ UEFI mappings are still active. A PMM is required before they can be discarded.
 
 ---
 
-## 🧠 Phase 3: Physical Memory Management (PMM)
+## 🧠 Phase 3: Physical Memory Management (PMM) (NOT STARTED)
 
 **Goal:** Implement a centralized physical memory allocator to manage raw system RAM.
 
+* **Current Status:** The PMM is currently a stub and does not manage memory. This is the next critical step.
 * **Map Analysis:** Parse the UEFI memory map to identify usable RAM versus reserved hardware regions.
 * **Bitmap Allocator:** Implement a high-performance bitmap-based PMM for tracking page availability.
 * **Page Primitives:** Provide `alloc_page()` and `free_page()` as the foundation for higher-level memory layers.
 
 ---
 
-## 🔒 Phase 4: Virtual Memory Management (VMM)
+## 🔒 Phase 4: Virtual Memory Management (VMM) (NOT STARTED)
 
 **Goal:** Establish a robust virtual memory subsystem for isolation and dynamic mapping.
 
@@ -47,7 +48,7 @@ This document defines the execution phases for **AxiomOS**, a performance-first,
 
 ---
 
-## 🧵 Phase 5: Kernel Services & Multitasking
+## 🧵 Phase 5: Kernel Services & Multitasking (NOT STARTED)
 
 **Goal:** Introduce task switching and hybrid-aware process management.
 
@@ -57,7 +58,7 @@ This document defines the execution phases for **AxiomOS**, a performance-first,
 
 ---
 
-## 💿 Phase 6: Drivers & User Ecosystem
+## 💿 Phase 6: Drivers & User Ecosystem (NOT STARTED)
 
 **Goal:** Expand native hardware compatibility and launch the initial user environment.
 

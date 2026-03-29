@@ -18,26 +18,26 @@
 
 *The goal of this phase is to establish a build environment that can compile our two main components: the UEFI bootloader and the ELF kernel.*
 
-* [ ] **1. `CMakeLists.txt` Setup:**
-  * [ ] Define two primary targets:
-    * [ ] `bootloader`: Compiles `src/bootloader/**.cpp` using the `x86_64-unknown-uefi` target triple to produce a PE/COFF executable (`.efi`).
-    * [ ] `kernel`: Compiles `src/kernel/**.cpp` and `src/kernel/**.S` into a freestanding, higher-half ELF64 executable.
-  * [ ] Enforce strict compiler flags (`-Wall`, `-Wextra`, `-Werror`, `-pedantic`).
-  * [ ] Set C++ standard to C++26 (`-std=c++26`).
-  * [ ] Disable features incompatible with freestanding environments (`-fno-exceptions`, `-fno-rtti`, `-nostdlib`, `-fno-stack-protector`).
-* [ ] **2. `tools/run-qemu.sh` Script:**
-  * [ ] **Automation:** The script must perform all build, imaging, and execution steps.
-  * [ ] **Build:** Call CMake/Ninja to build the project.
-  * [ ] **Imaging:**
-    * [ ] Create a 64MB FAT32 disk image (`axiom.img`).
-    * [ ] Create the directory structure `EFI/BOOT/`.
-    * [ ] Copy `bootloader.efi` to `EFI/BOOT/BOOTX64.EFI`.
-    * [ ] Copy `kernel.elf` to the root directory.
-  * [ ] **Execution:** Launch `qemu-system-x86_64` with:
-    * [ ] Local, user-owned OVMF firmware files.
-    * [ ] The created disk image.
-    * [ ] Serial port redirected to `stdio`.
-    * [ ] **Crucially:** Add `-d int,cpu_reset -no-reboot` flags for detailed fault analysis.
+* [x] **1. `CMakeLists.txt` Setup:**
+  * [x] Define two primary targets:
+    * [x] `bootloader`: Compiles `src/bootloader/**.cpp` using the `x86_64-unknown-uefi` target triple to produce a PE/COFF executable (`.efi`).
+    * [x] `kernel`: Compiles `src/kernel/**.cpp` and `src/kernel/**.S` into a freestanding, higher-half ELF64 executable.
+  * [x] Enforce strict compiler flags (`-Wall`, `-Wextra`, `-Werror`, `-pedantic`).
+  * [x] Set C++ standard to C++26 (`-std=c++26`).
+  * [x] Disable features incompatible with freestanding environments (`-fno-exceptions`, `-fno-rtti`, `-nostdlib`, `-fno-stack-protector`).
+* [x] **2. `tools/run-qemu.sh` Script:**
+  * [x] **Automation:** The script must perform all build, imaging, and execution steps.
+  * [x] **Build:** Call CMake/Ninja to build the project.
+  * [x] **Imaging:**
+    * [x] Create a 64MB FAT32 disk image (`axiom.img`).
+    * [x] Create the directory structure `EFI/BOOT/`.
+    * [x] Copy `bootloader.efi` to `EFI/BOOT/BOOTX64.EFI`.
+    * [x] Copy `kernel.elf` to the root directory.
+  * [x] **Execution:** Launch `qemu-system-x86_64` with:
+    * [x] Local, user-owned OVMF firmware files.
+    * [x] The created disk image.
+    * [x] Serial port redirected to `stdio`.
+    * [x] **Crucially:** Add `-d int,cpu_reset -no-reboot` flags for detailed fault analysis.
 
 ---
 
@@ -45,25 +45,25 @@
 
 *The bootloader is the bridge from firmware to our code. Its only job is to prepare the system and hand off control to the kernel.*
 
-* [ ] **1. Entry Point & GOP:**
-  * [ ] Create `src/bootloader/main.cpp`.
-  * [ ] Implement `efi_main`.
-  * [ ] Locate the Graphics Output Protocol (GOP) to get the framebuffer address and screen resolution.
-* [ ] **2. File Loading:**
-  * [ ] Implement logic to find and open the `kernel.elf` file from the FAT32 volume.
-* [ ] **3. ELF Parsing & Loading:**
-  * [ ] Read the ELF64 header.
-  * [ ] Iterate through the program headers, find `PT_LOAD` segments.
-  * [ ] For each segment, allocate physical memory pages using the UEFI `AllocatePages` service and copy the segment data into them.
-* [ ] **4. Memory Mapping & Handoff:**
-  * [ ] Get the UEFI memory map.
-  * [ ] Create a new set of 4-level page tables (PML4).
-    * [ ] **Identity-map** the first 4GiB of physical memory.
-    * [ ] **Map the loaded kernel segments** to their higher-half virtual addresses (`0xFFFFFFFF80000000`+).
-  * [ ] **Construct the `BootInfo` struct:** This C-style struct will contain framebuffer details, UEFI memory map, etc.
-  * [ ] **`ExitBootServices()`:** The point of no return.
-  * [ ] Load the new PML4 into the `CR3` register.
-  * [ ] Jump to the kernel's entry point, passing the address of the `BootInfo` struct.
+* [x] **1. Entry Point & GOP:**
+  * [x] Create `src/bootloader/main.cpp`.
+  * [x] Implement `efi_main`.
+  * [x] Locate the Graphics Output Protocol (GOP) to get the framebuffer address and screen resolution.
+* [x] **2. File Loading:**
+  * [x] Implement logic to find and open the `kernel.elf` file from the FAT32 volume.
+* [x] **3. ELF Parsing & Loading:**
+  * [x] Read the ELF64 header.
+  * [x] Iterate through the program headers, find `PT_LOAD` segments.
+  * [x] For each segment, allocate physical memory pages using the UEFI `AllocatePages` service and copy the segment data into them.
+* [x] **4. Memory Mapping & Handoff:**
+  * [x] Get the UEFI memory map.
+  * [x] Create a new set of 4-level page tables (PML4).
+    * [x] **Identity-map** the first 4GiB of physical memory.
+    * [x] **Map the loaded kernel segments** to their higher-half virtual addresses (`0xFFFFFFFF80000000`+).
+  * [x] **Construct the `BootInfo` struct:** This C-style struct will contain framebuffer details, UEFI memory map, etc.
+  * [x] **`ExitBootServices()`:** The point of no return.
+  * [x] Load the new PML4 into the `CR3` register.
+  * [x] Jump to the kernel's entry point, passing the address of the `BootInfo` struct.
 
 ---
 
@@ -71,25 +71,26 @@
 
 *This phase establishes a minimal, verifiable kernel environment. Our only tool for debugging is the serial port.*
 
-* [ ] **1. Kernel Entry (`entry.S`):**
-  * [ ] Create `src/kernel/arch/x86_64/entry.S`.
-  * [ ] Define the `_start` symbol (ELF entry point).
-  * [ ] **Critical:** Allocate a 16KiB BSS section for the initial kernel stack.
-  * [ ] Set the `RSP` register to the top of this stack.
-  * [ ] Move the `BootInfo` pointer from `rcx` (UEFI ABI) to `rdi` (System V ABI).
-  * [ ] Call the C++ `kmain` function.
-* [ ] **2. Serial Driver:**
-  * [ ] Create `src/kernel/utils/serial.cpp` and `.hpp`.
-  * [ ] Implement simple, polling-based I/O for the COM1 serial port.
-  * [ ] Provide only three functions: `init()`, `putchar(char)`, and `puts(const char*)`.
-  * [ ] **No variadic functions (`printf`) will be implemented at this stage.**
-* [ ] **3. Kernel Main (`kmain`):**
-  * [ ] Create `src/kernel/main.cpp`.
-  * [ ] The `kmain` function receives the `BootInfo` pointer.
-  * [ ] **First Action:** Call `serial::init()`.
-  * [ ] **Verification:** Print a welcome message and parse `BootInfo`, printing framebuffer/memmap details to the serial console.
-  * [ ] Enter an infinite `hlt` loop.
-  * [ ] **Goal:** Successfully boot and see clean, verifiable output in the QEMU console.
+* [x] **1. Kernel Entry (`entry.S`):**
+  * [x] Create `src/kernel/arch/x86_64/entry.S`.
+  * [x] Define the `_start` symbol (ELF entry point).
+  * [x] **Critical:** Allocate a 16KiB BSS section for the initial kernel stack.
+  * [x] Set the `RSP` register to the top of this stack.
+  * [x] Move the `BootInfo` pointer from `rcx` (UEFI ABI) to `rdi` (System V ABI).
+  * [x] Call the C++ `kmain` function.
+* [x] **2. Serial Driver:**
+  * [x] Create `src/kernel/utils/serial.cpp` and `.hpp`.
+  * [x] Implement simple, polling-based I/O for the COM1 serial port.
+  * [x] Provide only three functions: `init()`, `putchar(char)`, and `puts(const char*)`.
+  * [x] **No variadic functions (`printf`) will be implemented at this stage.**
+* [x] **3. Kernel Main (`kmain`):**
+  * [x] Create `src/kernel/main.cpp`.
+  * [x] The `kmain` function receives the `BootInfo` pointer.
+  * [x] **First Action:** Call `serial::init()`.
+  * [x] **Verification:** Print a welcome message and parse `BootInfo`, printing framebuffer/memmap details to the serial console.
+  * [x] Enter an infinite `hlt` loop.
+  * [x] **Goal:** Successfully boot and see clean, verifiable output in the QEMU console.
+
 
 ---
 
