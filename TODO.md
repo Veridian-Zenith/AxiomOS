@@ -91,7 +91,6 @@
   * [x] Enter an infinite `hlt` loop.
   * [x] **Goal:** Successfully boot and see clean, verifiable output in the QEMU console.
 
-
 ---
 
 ## 3️⃣ Phase 3: Physical Memory Manager (PMM)
