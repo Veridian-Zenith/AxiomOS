@@ -2,13 +2,19 @@
 # AxiomOS CMake Configuration (Pure LLVM/LLD)
 # =========================================================
 cmake_minimum_required(VERSION 3.25)
-project(AxiomOS LANGUAGES C CXX ASM)
 
-# Clear all default flags
+# 1. FORCE CORE SETTINGS BEFORE PROJECT()
+# This prevents CMake from trying to link host-level sanitizers during the sanity check.
+set(CMAKE_TRY_COMPILE_TARGET_TYPE "STATIC_LIBRARY")
+
+# 2. CLEAR HOST ENVIRONMENT LEAKS
+# We explicitly overwrite these to ensure 'march=native' or '-fsanitize' from the host don't bleed in.
 set(CMAKE_C_FLAGS "" CACHE STRING "" FORCE)
 set(CMAKE_CXX_FLAGS "" CACHE STRING "" FORCE)
 set(CMAKE_ASM_FLAGS "" CACHE STRING "" FORCE)
 set(CMAKE_EXE_LINKER_FLAGS "" CACHE STRING "" FORCE)
+
+project(AxiomOS LANGUAGES C CXX ASM)
 
 set(CMAKE_CXX_STANDARD 26)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -19,13 +25,13 @@ include_directories(include)
 # ====================================================================
 # Kernel Target
 # ====================================================================
+# Using a list for better readability and management
 set(KERNEL_FLAGS
-    "-march=native"
-    "-O0"
     "-ffreestanding"
+    "-O0"
+    "-fno-stack-protector"
     "-fno-exceptions"
     "-fno-rtti"
-    "-fno-stack-protector"
     "-mno-red-zone"
     "-mno-mmx"
     "-mno-sse"
@@ -37,6 +43,7 @@ set(KERNEL_FLAGS
     "-Wextra"
     "-Werror"
     "-Wpedantic"
+    "-gz=none"           # Explicitly disable debug compression leaks
 )
 
 set(KERNEL_SOURCES
@@ -53,12 +60,15 @@ set(KERNEL_SOURCES
 )
 
 add_executable(kernel ${KERNEL_SOURCES})
-target_compile_options(kernel PRIVATE ${KERNEL_FLAGS})
+
+# Use 'BEFORE' and 'PRIVATE' to ensure these are the ONLY flags used
+target_compile_options(kernel BEFORE PRIVATE ${KERNEL_FLAGS})
+
 target_link_options(kernel PRIVATE
     "-nostdlib"
     "-fuse-ld=lld"
     "-Wl,--nmagic"
-    "-Wl,--build-id=sha1"
+    "-Wl,--build-id=none" # Remove build-id to prevent host-specific hash leaks
     "-static"
     "-no-pie"
     "-Wl,-z,max-page-size=4096"
@@ -79,13 +89,17 @@ set(UEFI_FLAGS
     "-O0"
     "-Wall"
     "-Wextra"
-    "-Wpedantic"
 )
 
 add_executable(bootloader.efi src/bootloader/main.cpp)
-target_compile_options(bootloader.efi PRIVATE ${UEFI_FLAGS})
-set_target_properties(bootloader.efi PROPERTIES SUFFIX "")
-set_target_properties(bootloader.efi PROPERTIES LINK_FLAGS "")
+target_compile_options(bootloader.efi BEFORE PRIVATE ${UEFI_FLAGS})
+
+# Ensure the bootloader doesn't inherit any default link flags
+set_target_properties(bootloader.efi PROPERTIES
+    LINK_FLAGS ""
+    SUFFIX ""
+)
+
 target_link_options(bootloader.efi PRIVATE
     "-target" "x86_64-unknown-uefi"
     "-nostdlib"
