@@ -1,0 +1,1 @@
+struct BootInfo; void call_kernel(unsigned long long e_entry, BootInfo* bootinfo) { using KernelEntryType = void(__attribute__((sysv_abi)) *)(BootInfo*); KernelEntryType k = (KernelEntryType)e_entry; k(bootinfo); }

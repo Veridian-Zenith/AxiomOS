@@ -29,7 +29,8 @@ qemu-system-x86_64 \
     -drive if=pflash,format=raw,file=$OVMF_VARS \
     -drive format=raw,file=$IMAGE_NAME \
     -m 2G \
-    -serial stdio \
+    -nographic \
+    -serial mon:stdio \
     -no-reboot \
     -no-shutdown \
-    -d int,cpu_reset
+    -d int,cpu_reset,guest_errors -no-reboot -no-shutdown

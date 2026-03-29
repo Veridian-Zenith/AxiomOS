@@ -123,8 +123,6 @@ void MapPage(uint64_t* pml4, uint64_t vaddr, uint64_t paddr, uint64_t flags) {
         EFI_PHYSICAL_ADDRESS new_pdpt;
         if (gBS->AllocatePages(AllocateAnyPages, EfiLoaderData, 1, &new_pdpt) != EFI_SUCCESS) Panic((const int16_t*)u"Failed to allocate PDPT");
         memset((void*)new_pdpt, 0, PAGE_SIZE);
-        // Important: Mask out everything except physical address for next table
-
         pml4[pml4_idx] = (new_pdpt & ~(PAGE_SIZE - 1)) | PAGE_PRESENT | PAGE_RW;
     }
 
@@ -134,7 +132,6 @@ void MapPage(uint64_t* pml4, uint64_t vaddr, uint64_t paddr, uint64_t flags) {
         EFI_PHYSICAL_ADDRESS new_pd;
         if (gBS->AllocatePages(AllocateAnyPages, EfiLoaderData, 1, &new_pd) != EFI_SUCCESS) Panic((const int16_t*)u"Failed to allocate PD");
         memset((void*)new_pd, 0, PAGE_SIZE);
-
         pdpt[pdpt_idx] = (new_pd & ~(PAGE_SIZE - 1)) | PAGE_PRESENT | PAGE_RW;
     }
 
@@ -144,13 +141,10 @@ void MapPage(uint64_t* pml4, uint64_t vaddr, uint64_t paddr, uint64_t flags) {
         EFI_PHYSICAL_ADDRESS new_pt;
         if (gBS->AllocatePages(AllocateAnyPages, EfiLoaderData, 1, &new_pt) != EFI_SUCCESS) Panic((const int16_t*)u"Failed to allocate PT");
         memset((void*)new_pt, 0, PAGE_SIZE);
-
         pd[pd_idx] = (new_pt & ~(PAGE_SIZE - 1)) | PAGE_PRESENT | PAGE_RW;
     }
 
     uint64_t* pt = (uint64_t*)(pd[pd_idx] & ~(PAGE_SIZE - 1));
-
-
     pt[pt_idx] = (paddr & ~(PAGE_SIZE - 1)) | flags;
 }
 
@@ -163,39 +157,36 @@ extern "C" EFI_STATUS EFIAPI efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE*
     gST = system_table;
     gBS = system_table->BootServices;
 
-    if (gST->ConOut && gST->ConOut->ClearScreen) {
-        gST->ConOut->ClearScreen(gST->ConOut);
-    }
-
-    Print((const int16_t*)u"AxiomOS Bootloader Initializing...\r\n");
+    Print((const int16_t*)u"AxiomOS Bootloader Starting...\r\n");
 
     // 1. Setup GOP
     EFI_GRAPHICS_OUTPUT_PROTOCOL* gop = nullptr;
-    EFI_STATUS status = gBS->LocateProtocol(
-        const_cast<EFI_GUID*>(&EFI_GRAPHICS_OUTPUT_PROTOCOL_GUID),
-        nullptr,
-        reinterpret_cast<void**>(&gop)
-    );
-    if (status != EFI_SUCCESS) Panic((const int16_t*)u"Failed to locate GOP.");
+    if (gBS->LocateProtocol(const_cast<EFI_GUID*>(&EFI_GRAPHICS_OUTPUT_PROTOCOL_GUID), nullptr, reinterpret_cast<void**>(&gop)) != EFI_SUCCESS) {
+        Panic((const int16_t*)u"GOP not found.");
+    }
 
-    // 2. Load Kernel File
+    // 2. Open Kernel File
     EFI_FILE_PROTOCOL* kernel_file = nullptr;
-    status = GetFileHandle(image_handle, (const int16_t*)u"kernel", &kernel_file);
-    if (status != EFI_SUCCESS) Panic((const int16_t*)u"Failed to open kernel file. Is it in the root directory?");
+    if (GetFileHandle(image_handle, (const int16_t*)u"\\kernel", &kernel_file) != EFI_SUCCESS) {
+        Panic((const int16_t*)u"Failed to open kernel file.");
+    }
 
     // 3. Read ELF Header
     axiom::elf::Elf64_Ehdr ehdr;
     size_t ehdr_size = sizeof(ehdr);
-    status = kernel_file->Read(kernel_file, &ehdr_size, &ehdr);
-    if (status != EFI_SUCCESS || ehdr_size != sizeof(ehdr) ||
-        ehdr.e_ident[0] != axiom::elf::ELFMAG0 || ehdr.e_ident[1] != axiom::elf::ELFMAG1 ||
-        ehdr.e_ident[2] != axiom::elf::ELFMAG2 || ehdr.e_ident[3] != axiom::elf::ELFMAG3) {
-        Panic((const int16_t*)u"Invalid or corrupt ELF header.");
+    if (kernel_file->Read(kernel_file, &ehdr_size, &ehdr) != EFI_SUCCESS) {
+        Panic((const int16_t*)u"Failed to read ELF header.");
     }
 
-    // 4. Create PML4 Base
+    if (memcmp(ehdr.e_ident, axiom::elf::ELFMAG, axiom::elf::SELFMAG) != 0) {
+        Panic((const int16_t*)u"Invalid ELF magic.");
+    }
+
+    // 4. Allocate Page Tables (PML4)
     EFI_PHYSICAL_ADDRESS pml4_base;
-    if (gBS->AllocatePages(AllocateAnyPages, EfiLoaderData, 1, &pml4_base) != EFI_SUCCESS) Panic((const int16_t*)u"Failed to allocate PML4 base.");
+    if (gBS->AllocatePages(AllocateAnyPages, EfiLoaderData, 1, &pml4_base) != EFI_SUCCESS) {
+        Panic((const int16_t*)u"Failed to allocate memory for PML4.");
+    }
     memset((void*)pml4_base, 0, PAGE_SIZE);
     uint64_t* pml4 = (uint64_t*)pml4_base;
 
@@ -206,34 +197,28 @@ extern "C" EFI_STATUS EFIAPI efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE*
         kernel_file->SetPosition(kernel_file, ehdr.e_phoff + (i * ehdr.e_phentsize));
         kernel_file->Read(kernel_file, &phdr_size, &phdr);
 
-                if (phdr.p_type == axiom::elf::PT_LOAD) {
+        if (phdr.p_type == axiom::elf::PT_LOAD) {
             uint64_t vaddr = phdr.p_vaddr;
             uint64_t memsz = phdr.p_memsz;
             uint64_t filesz = phdr.p_filesz;
             uint64_t offset = phdr.p_offset;
 
-            // Calculate page-aligned addresses
             uint64_t vaddr_aligned = vaddr & ~(PAGE_SIZE - 1);
-            // deleted offset_aligned
-            uint64_t diff = vaddr - vaddr_aligned; // Offset into the first page
-
+            uint64_t diff = vaddr - vaddr_aligned;
             size_t pages = (memsz + diff + PAGE_SIZE - 1) / PAGE_SIZE;
 
             EFI_PHYSICAL_ADDRESS alloc_addr;
             if (gBS->AllocatePages(AllocateAnyPages, EfiLoaderData, pages, &alloc_addr) != EFI_SUCCESS) Panic((const int16_t*)u"Failed to allocate memory for ELF segment.");
 
-            // Read file into allocated memory at the correct offset
             kernel_file->SetPosition(kernel_file, offset);
             kernel_file->Read(kernel_file, &filesz, (void*)(alloc_addr + diff));
 
-            // Zero out remaining memsz
             if (memsz > filesz) {
                 memset((void*)(alloc_addr + diff + filesz), 0, memsz - filesz);
             }
 
-            // Map the loaded segment to its higher-half virtual address
             for (size_t p = 0; p < pages * PAGE_SIZE; p += PAGE_SIZE) {
-                MapPage(pml4, vaddr_aligned + p, alloc_addr + p, PAGE_PRESENT | PAGE_RW); // Also identity map it briefly to jump if needed
+                MapPage(pml4, vaddr_aligned + p, alloc_addr + p, PAGE_PRESENT | PAGE_RW);
                 MapPage(pml4, alloc_addr + p, alloc_addr + p, PAGE_PRESENT | PAGE_RW);
             }
         }
@@ -244,10 +229,9 @@ extern "C" EFI_STATUS EFIAPI efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE*
     Print((const int16_t*)u"Kernel segments loaded and mapped. Constructing BootInfo...\r\n");
 
     // 6. Construct BootInfo
-    BootInfo* bootinfo = nullptr;
     EFI_PHYSICAL_ADDRESS bootinfo_addr;
     if (gBS->AllocatePages(AllocateAnyPages, EfiLoaderData, 1, &bootinfo_addr) != EFI_SUCCESS) Panic((const int16_t*)u"Failed to allocate BootInfo.");
-    bootinfo = (BootInfo*)bootinfo_addr;
+    BootInfo* bootinfo = (BootInfo*)bootinfo_addr;
 
     bootinfo->framebuffer.base = (void*)gop->Mode->frame_buffer_base;
     bootinfo->framebuffer.size = gop->Mode->frame_buffer_size;
@@ -274,7 +258,6 @@ extern "C" EFI_STATUS EFIAPI efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE*
             EFI_PHYSICAL_ADDRESS new_pdpt;
             gBS->AllocatePages(AllocateAnyPages, EfiLoaderData, 1, &new_pdpt);
             memset((void*)new_pdpt, 0, PAGE_SIZE);
-
             pml4[pml4_idx] = (new_pdpt & ~(PAGE_SIZE - 1)) | PAGE_PRESENT | PAGE_RW;
         }
 
@@ -284,52 +267,36 @@ extern "C" EFI_STATUS EFIAPI efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE*
             EFI_PHYSICAL_ADDRESS new_pd;
             gBS->AllocatePages(AllocateAnyPages, EfiLoaderData, 1, &new_pd);
             memset((void*)new_pd, 0, PAGE_SIZE);
-
             pdpt[pdpt_idx] = (new_pd & ~(PAGE_SIZE - 1)) | PAGE_PRESENT | PAGE_RW;
         }
 
         uint64_t* pd = (uint64_t*)(pdpt[pdpt_idx] & ~(PAGE_SIZE - 1));
-
         pd[pd_idx] = (p & ~0x1FFFFF) | PAGE_PRESENT | PAGE_RW | PAGE_HUGE;
     }
 
-    // 8. Memory Map & Handoff
-    Print((const int16_t*)u"Getting UEFI Memory Map...\r\n");
-    size_t map_size = 0, map_key = 0, desc_size = 0;
+    // 8. Final Handover
+    Print((const int16_t*)u"ExitBootServices...\r\n");
+    size_t map_size = 0;
+    EFI_MEMORY_DESCRIPTOR* memory_map = nullptr;
+    size_t map_key = 0;
+    size_t desc_size = 0;
     uint32_t desc_version = 0;
 
     gBS->GetMemoryMap(&map_size, nullptr, &map_key, &desc_size, &desc_version);
+    map_size += 2 * desc_size;
+    gBS->AllocatePages(AllocateAnyPages, EfiLoaderData, (map_size + PAGE_SIZE - 1) / PAGE_SIZE, (EFI_PHYSICAL_ADDRESS*)&memory_map);
+    gBS->GetMemoryMap(&map_size, memory_map, &map_key, &desc_size, &desc_version);
 
-    // Add generous slack space for allocations made during map acquisition
-    map_size += desc_size * 8;
-    EFI_PHYSICAL_ADDRESS mmap_addr;
-    if (gBS->AllocatePages(AllocateAnyPages, EfiLoaderData, (map_size / PAGE_SIZE) + 1, &mmap_addr) != EFI_SUCCESS) Panic((const int16_t*)u"Failed to allocate Memory Map buffer.");
-    EFI_MEMORY_DESCRIPTOR* memory_map = (EFI_MEMORY_DESCRIPTOR*)mmap_addr;
+    using KernelEntryType = void(__attribute__((sysv_abi)) *)(BootInfo*);
+    KernelEntryType KernelEntry = (KernelEntryType) ehdr.e_entry;
 
-    status = gBS->GetMemoryMap(&map_size, memory_map, &map_key, &desc_size, &desc_version);
-    if (status != EFI_SUCCESS) Panic((const int16_t*)u"Failed to get memory map");
-
-    bootinfo->mmap = (axiom::MemoryDescriptor*)memory_map;
-    bootinfo->mmap_size = map_size;
-    bootinfo->mmap_desc_size = desc_size;
-
-    Print((const int16_t*)u"Exiting Boot Services and jumping to Kernel...\r\n");
-
-    // --- DEBUG DUMP ---
     Print((const int16_t*)u"PML4 Base: ");
     PrintHex(pml4_base);
-    Print((const int16_t*)u"PML4[0] (Identity): ");
-    PrintHex(pml4[0]);
-    Print((const int16_t*)u"PML4[511] (Higher-Half): ");
-    PrintHex(pml4[511]);
-    Print((const int16_t*)u"Kernel Entry Point: ");
-    PrintHex(ehdr.e_entry);
-    // ------------------
+    Print((const int16_t*)u"Kernel Entry: ");
+    PrintHex((uint64_t)KernelEntry);
 
-    status = gBS->ExitBootServices(image_handle, map_key);
+    EFI_STATUS status = gBS->ExitBootServices(image_handle, map_key);
     if (status != EFI_SUCCESS) {
-        // ExitBootServices can fail if an interrupt occurred and allocations changed the map.
-        // The standard is to fetch the memory map ONE MORE TIME and retry.
         gBS->GetMemoryMap(&map_size, memory_map, &map_key, &desc_size, &desc_version);
         status = gBS->ExitBootServices(image_handle, map_key);
         if (status != EFI_SUCCESS) Panic((const int16_t*)u"ExitBootServices failed on retry");
@@ -338,12 +305,8 @@ extern "C" EFI_STATUS EFIAPI efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE*
     // Load the NEW PML4 into CR3 to activate higher-half kernel mapping
     __asm__ volatile("mov %0, %%cr3" : : "r"(pml4_base));
 
-    using KernelEntryType = void(__attribute__((sysv_abi)) *)(BootInfo*);
-    KernelEntryType KernelEntry = (KernelEntryType) ehdr.e_entry;
     KernelEntry(bootinfo);
 
-    // We should never reach here if the kernel is well-behaved.
     while(true) { __asm__ volatile("cli; hlt"); }
-
     return EFI_SUCCESS;
 }

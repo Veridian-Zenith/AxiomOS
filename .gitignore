@@ -38,6 +38,5 @@ CMakeFiles/
 .cache/
 
 # ==== Local Logs & Tests ====
-log.txt
-run_log.txt
-test_sysv.cpp
+*.log
+*.txt

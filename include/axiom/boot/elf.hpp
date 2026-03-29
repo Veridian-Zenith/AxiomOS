@@ -16,6 +16,9 @@ constexpr uint8_t ELFMAG1 = 'E';
 constexpr uint8_t ELFMAG2 = 'L';
 constexpr uint8_t ELFMAG3 = 'F';
 
+inline const uint8_t ELFMAG[4] = {ELFMAG0, ELFMAG1, ELFMAG2, ELFMAG3};
+constexpr size_t SELFMAG = 4;
+
 constexpr uint8_t ELFCLASS64 = 2;
 constexpr uint8_t ELFDATA2LSB = 1;
 

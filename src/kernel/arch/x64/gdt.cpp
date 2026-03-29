@@ -10,7 +10,7 @@ struct Gdt {
 static Gdt gdt;
 static TssEntry tss;
 
-extern "C" void gdt_load(GdtPointer* ptr, uint16_t code, uint16_t data);
+extern "C" void gdt_load(uint64_t ptr_addr, uint16_t code, uint16_t data);
 extern "C" void tss_load(uint16_t sel);
 
 void initGdt() {
@@ -32,7 +32,7 @@ void initGdt() {
 
     // 2. Setup TSS Descriptor (0x28)
     uint64_t tss_base = (uint64_t)&tss;
-    gdt.tss.limit_low = sizeof(TssEntry) - 1;
+    gdt.tss.limit_low = sizeof(TssEntry);
     gdt.tss.base_low = (uint16_t)(tss_base & 0xFFFF);
     gdt.tss.base_middle = (uint8_t)((tss_base >> 16) & 0xFF);
     gdt.tss.access = 0x89; // Present, Executable, 64-bit TSS (Available)
@@ -50,7 +50,7 @@ void initGdt() {
     ptr.limit = sizeof(Gdt) - 1;
     ptr.base = (uint64_t)&gdt;
 
-    gdt_load(&ptr, KERNEL_CODE_SEL, KERNEL_DATA_SEL);
+    gdt_load((uint64_t)&ptr, KERNEL_CODE_SEL, KERNEL_DATA_SEL);
     tss_load(TSS_SEL);
 }
 

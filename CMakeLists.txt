@@ -46,6 +46,8 @@ set(KERNEL_SOURCES
     src/kernel/arch/x64/cpu.cpp
     src/kernel/arch/x64/gdt.cpp
     src/kernel/arch/x64/gdt.S
+    src/kernel/arch/x64/idt.cpp
+    src/kernel/arch/x64/interrupts.S
     src/kernel/arch/x64/apic.cpp
     src/kernel/mm/allocator.cpp
 )
