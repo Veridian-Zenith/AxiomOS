@@ -2,15 +2,17 @@
 
 > **Core Philosophy:** The system prioritizes resilience over brittleness. For any operation, it will first attempt the expected path. If that fails, it will attempt a set of reasonable alternatives. If the request is illogical, impossible, or potentially malicious, it will be met with a "Strict Denial," which includes a descriptive alert and protective measures.
 
-## Technical Stack
+## Development Strategy
 
-* **Architecture:** `x86_64`
-* **CPU Mode:** 64-bit Long Mode
-* **Firmware:** UEFI Class 3 (no legacy BIOS/CSM)
-* **Language:** C++26 (`-std=c++26`)
-* **Toolchain:** LLVM/Clang/LLD only (Linux host)
-* **Kernel:** Higher-Half, linked at `0xFFFFFFFF80000000`
-* **Build System:** CMake + Ninja
+* **Target-First, Abstract-Always:** The kernel architecture must strictly target the hardware documented in [docs/hardware_info.md](./docs/hardware_info.md) for current implementation efficiency.
+* **Pluggable Design:** Every hardware-dependent subsystem (memory, interrupts, drivers) must be implemented behind clean interfaces, allowing future hardware abstraction layers (HAL) or device-specific modules to be swapped in without modifying the kernel core.
+
+## Kernel Architecture Choice
+
+* **Design:** A **highly-modular, service-oriented kernel core**.
+* **Rationale:** To maximize hardware authority and minimize latency while maintaining unparalleled modularity. By operating in a single address space (avoiding traditional context-switch overhead), we eliminate the bottlenecks of monolithic systems while bypassing the performance hits of microkernel message-passing.
+* **Modularity (The Service-Oriented Approach):** This is *not* a standard monolithic kernel. It employs a strict **Service-Oriented Architecture (SOA)** internally. All subsystems (Memory, Interrupts, Drivers, I/O) are designed as independent modules with well-defined APIs and communicate through a central `ServiceRegistry`. This ensures that any part of the system—from memory allocators to hardware drivers—can be swapped or hot-loaded without architectural changes.
+* **Performance:** Efficiency is achieved by reducing abstraction layers, not by coupling components. We provide "zero-cost" abstractions through C++26 features, ensuring that the modular structure does not impose runtime performance penalties.
 
 ---
 
@@ -125,3 +127,29 @@
     * [ ] Verify that `get_free_memory()` counts are correct.
     * [ ] **Test all Strict Denial cases** to ensure they are caught and reported correctly.
   * [ ] **Goal:** A successful run of the test suite printed to the serial console, proving PMM reliability.
+
+---
+
+## 4️⃣ Phase 4: Modular VMM and Service Registry
+
+*Establish a pluggable architecture for virtual memory and kernel services.*
+
+* [ ] **1. Paging Interface:**
+  * [ ] Define `axiom::mm::PagingInterface` as a C++26 concept/interface for page table management.
+  * [ ] Implement `x86_64::PageTableManager` compliant with `PagingInterface`.
+* [ ] **2. Service Registry:**
+  * [ ] Create `axiom::kernel::ServiceRegistry`.
+  * [ ] Allow core services (Memory, Interrupts, Drivers) to register themselves at boot.
+  * [ ] Ensure all lookups are O(1) or O(log N) for performance.
+
+---
+
+## 5️⃣ Phase 5: Lightweight Driver Framework
+
+*Drivers must be modular and performant.*
+
+* [ ] **1. Driver Abstraction:**
+  * [ ] Define `axiom::drivers::Device` interface.
+  * [ ] Implement `serial` driver using this interface.
+* [ ] **2. Modular Loading:**
+  * [ ] Support dynamic registration of drivers via the Service Registry.

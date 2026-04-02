@@ -16,14 +16,14 @@ This document defines the execution phases for **AxiomOS**, a performance-first,
 
 ---
 
-## 🛠️ Phase 2: Architectural Setup (IN PROGRESS)
+## ✅ Phase 2: Architectural Setup (COMPLETED)
 
 **Goal:** Transition from firmware-provided states to kernel-managed CPU and interrupt control.
 
 * **CPU State:** ✅ GDT and TSS initialization logic is implemented.
 * **Interrupts:** ✅ IDT is implemented to handle mandatory exceptions.
 * **APIC:** ✅ Basic setup for Local APIC and IOAPIC is in place.
-* **Memory Purity:** ❌ UEFI mappings are still active. A PMM is required before they can be discarded.
+* **Memory Purity:** ✅ UEFI mappings are discarded and replaced by PMM.
 
 ---
 

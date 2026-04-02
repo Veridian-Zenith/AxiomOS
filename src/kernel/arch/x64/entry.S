@@ -36,7 +36,7 @@ _start:
     .extern kmain
     call kmain
 
-    # 4. Safety Loop 
+    # 4. Safety Loop
 _halt:
     cli
     hlt

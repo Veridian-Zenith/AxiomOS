@@ -2,6 +2,7 @@
 #include "axiom/drivers/serial.hpp"
 #include "axiom/arch/x64/cpu.hpp"
 #include "axiom/mm/allocator.hpp"
+#include "axiom/tests/pmm.hpp"
 
 namespace {
 [[maybe_unused]] void PrintKernelInfo([[maybe_unused]] const axiom::BootInfo* info) {
@@ -30,6 +31,7 @@ extern "C" [[noreturn]] void kmain(axiom::BootInfo* info) {
     // 2. Initialize Memory Management
     serial::puts("[KERNEL] Initializing PMM...\n");
     mm::init(info);
+    tests::test_pmm();
 
     // 3. Hardware initialization
     serial::puts("[KERNEL] Initializing GDT/IDT/APIC...\n");
