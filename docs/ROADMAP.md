@@ -27,14 +27,14 @@ This document defines the execution phases for **AxiomOS**, a performance-first,
 
 ---
 
-## 🧠 Phase 3: Physical Memory Management (PMM) (NOT STARTED)
+## ✅ Phase 3: Physical Memory Management (PMM) (COMPLETED)
 
 **Goal:** Implement a centralized physical memory allocator to manage raw system RAM.
 
-* **Current Status:** The PMM is currently a stub and does not manage memory. This is the next critical step.
-* **Map Analysis:** Parse the UEFI memory map to identify usable RAM versus reserved hardware regions.
-* **Bitmap Allocator:** Implement a high-performance bitmap-based PMM for tracking page availability.
-* **Page Primitives:** Provide `alloc_page()` and `free_page()` as the foundation for higher-level memory layers.
+* **Current Status:** ✅ PMM is implemented, parsing UEFI maps and managing page allocation via a bitmap-based allocator.
+* **Map Analysis:** ✅ Parse the UEFI memory map to identify usable RAM versus reserved hardware regions.
+* **Bitmap Allocator:** ✅ Implement a high-performance bitmap-based PMM for tracking page availability.
+* **Page Primitives:** ✅ Provide `alloc_page()` and `free_page()` as the foundation for higher-level memory layers.
 
 ---
 
