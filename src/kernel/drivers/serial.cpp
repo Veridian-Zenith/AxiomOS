@@ -13,7 +13,7 @@ void init() {
     outb(COM1 + 1, 0x00);    //                  (hi byte)
     outb(COM1 + 3, 0x03);    // 8 bits, no parity, one stop bit
     outb(COM1 + 2, 0xC7);    // Enable FIFO, clear them, with 14-byte threshold
-    outb(COM1 + 4, 0x0B);    // IRQs enabled, RTS/DSR set
+    // outb(COM1 + 4, 0x0B);    // IRQs enabled, RTS/DSR set
 }
 
 int is_transmit_empty() {

@@ -31,7 +31,7 @@ endif()
 # 4. C++26 STANDARD MANDATE
 set(CMAKE_CXX_STANDARD 26)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF) 
+set(CMAKE_CXX_EXTENSIONS OFF)
 
 # 5. SOURCE DEFINITIONS
 set(KERNEL_SOURCES
@@ -44,6 +44,7 @@ set(KERNEL_SOURCES
     src/kernel/arch/x64/idt.cpp
     src/kernel/arch/x64/interrupts.S
     src/kernel/arch/x64/apic.cpp
+    src/kernel/arch/x64/paging.cpp
     src/kernel/mm/allocator.cpp
     src/kernel/tests/pmm.cpp
 )
@@ -53,7 +54,7 @@ add_executable(kernel ${KERNEL_SOURCES})
 
 target_compile_options(kernel PRIVATE
     -ffreestanding
-    -O0                         
+    -O0
     -fno-exceptions
     -fno-rtti
     -mno-mmx
@@ -73,7 +74,7 @@ target_include_directories(kernel PRIVATE ${PROJECT_SOURCE_DIR}/include)
 target_link_options(kernel PRIVATE
     -nostdlib
     -fuse-ld=lld
-    -Wl,--nmagic               
+    -Wl,--nmagic
     -Wl,--build-id=none
     -static
     -Wl,-no-pie

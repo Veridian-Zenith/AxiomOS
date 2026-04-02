@@ -8,9 +8,8 @@
 
 
 namespace {
-    static uint8_t g_bitmap_static[64 * 1024]; // 64KB bitmap
-    uint8_t* g_bitmap = g_bitmap_static;
-    size_t g_bitmap_size = 64 * 1024;
+    uint8_t* g_bitmap = nullptr;
+    size_t g_bitmap_size = 0;
     size_t g_total_pages = 0;
     size_t g_free_pages = 0;
     size_t g_last_alloc_idx = 0;
@@ -59,6 +58,35 @@ void init(const BootInfo* info) {
     }
 
     g_total_pages = highest_addr / PAGE_SIZE;
+    g_bitmap_size = (g_total_pages + 7) / 8;
+
+    // Find and allocate bitmap
+    for (size_t i = 0; i < info->mmap_size / info->mmap_desc_size; ++i) {
+        auto desc = reinterpret_cast<const axiom::MemoryDescriptor*>(
+            reinterpret_cast<const uint8_t*>(info->mmap) + i * info->mmap_desc_size
+        );
+
+        // Ensure the bitmap is in the lower 2GB of physical memory
+        if (desc->type == uefi::EfiConventionalMemory && desc->physical_start >= 0x1000000 && desc->physical_start < 0x80000000 && desc->number_of_pages * PAGE_SIZE >= g_bitmap_size) {
+            g_bitmap = reinterpret_cast<uint8_t*>(desc->physical_start);
+            break;
+        }
+    }
+
+    if (!g_bitmap) {
+        serial::puts("[PMM] Failed to allocate bitmap.\n");
+        asm("cli; hlt");
+    }
+
+    serial::puts("[PMM] Bitmap allocated at 0x");
+    serial::puthex(reinterpret_cast<uint64_t>(g_bitmap));
+    serial::puts(" (size 0x");
+    serial::puthex(g_bitmap_size);
+    serial::puts(" bytes)\n");
+
+    serial::puts("[PMM] Total pages: 0x");
+    serial::puthex(g_total_pages);
+    serial::puts("\n");
 
     // Mark all memory as used initially
     for (size_t i = 0; i < g_bitmap_size; ++i) {
@@ -77,6 +105,11 @@ void init(const BootInfo* info) {
             g_free_pages += desc->number_of_pages;
         }
     }
+
+    // Mark bitmap memory as used
+    size_t bitmap_pages = (g_bitmap_size + PAGE_SIZE - 1) / PAGE_SIZE;
+    set_range(reinterpret_cast<uint64_t>(g_bitmap) / PAGE_SIZE, bitmap_pages);
+    g_free_pages -= bitmap_pages;
 
     serial::puts("[PMM] Initialized.\n");
 }

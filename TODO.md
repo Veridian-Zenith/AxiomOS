@@ -71,7 +71,7 @@
 
 ## 2️⃣ Phase 2: Kernel - The First Lines of Code
 
-*This phase establishes a minimal, verifiable kernel environment. Our only tool for debugging is the serial port.*
+*The bootloader is the bridge from firmware to our code. Its only job is to prepare the system and hand off control to the kernel.*
 
 * [x] **1. Kernel Entry (`entry.S`):**
   * [x] Create `src/kernel/arch/x86_64/entry.S`.
@@ -80,6 +80,7 @@
   * [x] Set the `RSP` register to the top of this stack.
   * [x] Move the `BootInfo` pointer from `rcx` (UEFI ABI) to `rdi` (System V ABI).
   * [x] Call the C++ `kmain` function.
+  * [x] **Status:** Initial boot crash resolved; higher-half paging and stack initialization require further debugging.
 * [x] **2. Serial Driver:**
   * [x] Create `src/kernel/utils/serial.cpp` and `.hpp`.
   * [x] Implement simple, polling-based I/O for the COM1 serial port.

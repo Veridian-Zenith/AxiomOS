@@ -14,6 +14,7 @@ SECTIONS
     . = 0xFFFFFFFF80000000;
 
     .text : ALIGN(4K) {
+        KEEP(*(.text._start))
         *(.text .text.*)
     } :text
 

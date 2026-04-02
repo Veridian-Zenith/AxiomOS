@@ -68,17 +68,6 @@ constexpr uint64_t PAGE_NX = 1ULL << 63;
 
 void Print(const int16_t* str) { gST->ConOut->OutputString(gST->ConOut, str); }
 
-void PrintHex(uint64_t val) {
-    int16_t buffer[17];
-    buffer[16] = 0;
-    const char* hex = "0123456789ABCDEF";
-    for (int i = 15; i >= 0; --i) {
-        buffer[i] = (int16_t)hex[val & 0xF];
-        val >>= 4;
-    }
-    Print((const int16_t*)buffer);
-}
-
 void MapPage(uint64_t* pml4, uint64_t vaddr, uint64_t paddr, uint64_t flags) {
     uint64_t indices[4] = {
         (vaddr >> 39) & 0x1FF, // PML4
@@ -97,13 +86,12 @@ void MapPage(uint64_t* pml4, uint64_t vaddr, uint64_t paddr, uint64_t flags) {
         }
         current_table = (uint64_t*)(current_table[indices[i]] & ~0xFFFULL);
     }
-    // Only apply the specified flags (e.g., NX) to the leaf page
-    current_table[indices[3]] = (paddr & ~0xFFFULL) | (flags & ~0xFFFULL) | (current_table[indices[3]] & 0xFFF) | (flags & 0xFFF);
+    current_table[indices[3]] = (paddr & ~0xFFFULL) | (flags & 0xFFF) | PAGE_PRESENT;
 }
 
 void MapKernel(uint64_t* pml4, axiom::elf::Elf64_Ehdr& ehdr, EFI_FILE_PROTOCOL* kernel_file) {
     size_t ph_size = ehdr.e_phnum * ehdr.e_phentsize;
-    axiom::elf::Elf64_Phdr* phdrs = (axiom::elf::Elf64_Phdr*)0; // Should be malloc
+    axiom::elf::Elf64_Phdr* phdrs = (axiom::elf::Elf64_Phdr*)0;
     gBS->AllocatePool(EfiLoaderData, ph_size, (void**)&phdrs);
     kernel_file->SetPosition(kernel_file, ehdr.e_phoff);
     kernel_file->Read(kernel_file, &ph_size, phdrs);
@@ -120,14 +108,9 @@ void MapKernel(uint64_t* pml4, axiom::elf::Elf64_Ehdr& ehdr, EFI_FILE_PROTOCOL* 
             size_t filesz = phdr.p_filesz;
             kernel_file->Read(kernel_file, &filesz, (void*)(phys_addr + (phdr.p_vaddr & 0xFFF)));
 
-            // High-Half and Identity Mapping
-            uint64_t flags = PAGE_PRESENT;
-            if (phdr.p_flags & axiom::elf::PF_W) {
-                flags |= PAGE_RW;
-            }
-            if (!(phdr.p_flags & axiom::elf::PF_X)) {
-                flags |= PAGE_NX;
-            }
+            uint64_t flags = PAGE_PRESENT | PAGE_RW; // Temporary DEBUG: Make everything writable
+            // if (phdr.p_flags & axiom::elf::PF_W) flags |= PAGE_RW;
+            // if (!(phdr.p_flags & axiom::elf::PF_X)) flags |= PAGE_NX;
 
             uint64_t vaddr_offset = phdr.p_vaddr & (PAGE_SIZE - 1);
             uint64_t start_v = phdr.p_vaddr & ~(PAGE_SIZE - 1);
@@ -139,7 +122,6 @@ void MapKernel(uint64_t* pml4, axiom::elf::Elf64_Ehdr& ehdr, EFI_FILE_PROTOCOL* 
                 MapPage(pml4, v, paddr, flags);
             }
 
-            // CRITICAL: Zero out the BSS portion
             if (phdr.p_memsz > phdr.p_filesz) {
                 memset((void*)(phys_addr + vaddr_offset + phdr.p_filesz), 0, phdr.p_memsz - phdr.p_filesz);
             }
@@ -158,11 +140,9 @@ extern "C" EFI_STATUS EFIAPI efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE*
 
     Print((const int16_t*)u"AxiomOS Bootloader: Initializing NVMe Stack...\r\n");
 
-    // 1. Initialize GOP
     EFI_GRAPHICS_OUTPUT_PROTOCOL* gop = nullptr;
     gBS->LocateProtocol(const_cast<EFI_GUID*>(&EFI_GRAPHICS_OUTPUT_PROTOCOL_GUID), nullptr, (void**)&gop);
 
-    // 2. Open Kernel from NVMe
     EFI_LOADED_IMAGE_PROTOCOL* loaded_image;
     gBS->HandleProtocol(image_handle, const_cast<EFI_GUID*>(&EFI_LOADED_IMAGE_PROTOCOL_GUID), (void**)&loaded_image);
 
@@ -173,7 +153,6 @@ extern "C" EFI_STATUS EFIAPI efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE*
     fs->OpenVolume(fs, &root);
     root->Open(root, &kernel_file, (const int16_t*)u"kernel", 0x01, 0);
 
-    // 3. Parse ELF and Allocate Page Tables
     axiom::elf::Elf64_Ehdr ehdr;
     size_t sz = sizeof(ehdr);
     kernel_file->Read(kernel_file, &sz, &ehdr);
@@ -183,15 +162,35 @@ extern "C" EFI_STATUS EFIAPI efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE*
     memset((void*)pml4_base, 0, PAGE_SIZE);
     uint64_t* pml4 = (uint64_t*)pml4_base;
 
-    // 4. Map Kernel Segments (The #PF Fix)
     MapKernel(pml4, ehdr, kernel_file);
 
-    // 5. Identity Map First 4GB for Firmware/Transition (REMOVED)
-    // for (uint64_t p = 0; p < 0x100000000; p += 0x200000) {
-    //     ...
-    // }
+    // Set Recursive Paging Entry (Index 510)
+    pml4[510] = pml4_base | PAGE_PRESENT | PAGE_RW;
 
-    // 6. Final Handover
+    // Identity Map the entire 4GB space for the transition (Safe & Reliable)
+    for (uint64_t p = 0; p < 0x100000000; p += 0x200000) {
+        // Use 2MB pages for identity map to speed up bootloader setup
+        uint64_t pml4_idx = (p >> 39) & 0x1FF;
+        uint64_t pdpt_idx = (p >> 30) & 0x1FF;
+        uint64_t pd_idx = (p >> 21) & 0x1FF;
+
+        if (!(pml4[pml4_idx] & PAGE_PRESENT)) {
+            EFI_PHYSICAL_ADDRESS pdpt;
+            gBS->AllocatePages(AllocateAnyPages, EfiLoaderData, 1, &pdpt);
+            memset((void*)pdpt, 0, PAGE_SIZE);
+            pml4[pml4_idx] = pdpt | PAGE_PRESENT | PAGE_RW;
+        }
+        uint64_t* pdpt = (uint64_t*)(pml4[pml4_idx] & ~0xFFFULL);
+        if (!(pdpt[pdpt_idx] & PAGE_PRESENT)) {
+            EFI_PHYSICAL_ADDRESS pd;
+            gBS->AllocatePages(AllocateAnyPages, EfiLoaderData, 1, &pd);
+            memset((void*)pd, 0, PAGE_SIZE);
+            pdpt[pdpt_idx] = pd | PAGE_PRESENT | PAGE_RW;
+        }
+        uint64_t* pd = (uint64_t*)(pdpt[pdpt_idx] & ~0xFFFULL);
+        pd[pd_idx] = p | PAGE_PRESENT | PAGE_RW | PAGE_HUGE;
+    }
+
     BootInfo* bootinfo;
     gBS->AllocatePages(AllocateAnyPages, EfiLoaderData, 1, (EFI_PHYSICAL_ADDRESS*)&bootinfo);
     memset(bootinfo, 0, sizeof(BootInfo));
@@ -207,45 +206,14 @@ extern "C" EFI_STATUS EFIAPI efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE*
     bootinfo->mmap_size = map_size;
     bootinfo->mmap_desc_size = desc_size;
 
-    // Map BootInfo structure
-    uint64_t bootinfo_addr = (uint64_t)bootinfo;
-    uint64_t start_page = bootinfo_addr & ~(PAGE_SIZE - 1);
-    uint64_t end_page = (bootinfo_addr + sizeof(axiom::BootInfo) + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
-    for (uint64_t p = start_page; p < end_page; p += PAGE_SIZE) {
-        MapPage(pml4, p, p, PAGE_PRESENT | PAGE_RW);
-    }
-
-    // Map Memory Map
-    uint64_t mmap_addr = (uint64_t)bootinfo->mmap;
-    start_page = mmap_addr & ~(PAGE_SIZE - 1);
-    end_page = (mmap_addr + map_size + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
-    for (uint64_t p = start_page; p < end_page; p += PAGE_SIZE) {
-        MapPage(pml4, p, p, PAGE_PRESENT | PAGE_RW);
-    }
-
-    // Map framebuffer
-    uint64_t fb_addr = (uint64_t)bootinfo->framebuffer.base;
-    start_page = fb_addr & ~(PAGE_SIZE - 1);
-    end_page = (fb_addr + bootinfo->framebuffer.size + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
-    for (uint64_t p = start_page; p < end_page; p += PAGE_SIZE) {
-        MapPage(pml4, p, p, PAGE_PRESENT | PAGE_RW);
-    }
-
-    // Map Page 0 to prevent fault on NULL dereference
-    MapPage(pml4, 0, 0, PAGE_PRESENT | PAGE_RW);
-
     gBS->ExitBootServices(image_handle, map_key);
-    // Print((const int16_t*)u"ExitBootServices called\r\n"); // Can't use Print after ExitBootServices
 
-    // Enable NXE bit in EFER
     uint64_t efer = __readmsr(0xC0000080);
-    efer |= (1 << 11); // NXE bit
+    efer |= (1 << 11);
     __writemsr(0xC0000080, efer);
 
-    // Activate High-Half Paging
     __asm__ volatile("mov %0, %%cr3" : : "r"(pml4_base));
 
-    // Jump to Kernel Entry
     using KernelEntry = void(__attribute__((sysv_abi)) *)(BootInfo*);
     ((KernelEntry)ehdr.e_entry)(bootinfo);
 
