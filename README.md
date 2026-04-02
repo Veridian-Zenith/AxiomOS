@@ -17,13 +17,13 @@ AxiomOS is a rejection of modern software bloat. We don't do "virtual systems," 
 
 ---
 
-## 🚀 Current Status: Phase 2 (IN PROGRESS)
+## 🚀 Current Status: Phase 3 (COMPLETE)
 
 * **UEFI Bootloader:** Hand-written EFI application that handles ELF loading and memory map hand-off.
 * **Higher-Half Kernel:** Successfully mapped and executing at `0xFFFFFFFF80000000`.
 * **Architectural Setup:** GDT, IDT, and basic APIC support initialized.
 * **Early Logging:** UART 16550 serial driver for COM1 debug output.
-* **Memory PMM:** Physical memory manager is the next major implementation goal.
+* **Memory PMM:** Physical memory manager implemented.
 
 ---
 
@@ -33,7 +33,19 @@ Refer to [ROADMAP.md](./docs/ROADMAP.md) for detailed phase breakdown and future
 
 ---
 
-## 📦 Building & Testing
+## 💬 Community and Discussions
+
+We use **GitHub Discussions** as our primary forum for Q&A, sharing ideas, and project updates.
+
+* **Ideas:** Suggest new features or architectural changes.
+* **Q&A:** Get help with building or understanding the kernel.
+* **Show and Tell:** Share what you've built or discovered using AxiomOS or any of its components.
+
+Please see our [CONTRIBUTING.md](CONTRIBUTING.md) guide for more details on how to contribute.
+
+---
+
+## � Building & Testing
 
 ```fish
 # Requirements: CMake 3.25+, Clang/LLVM 22.1+, QEMU + OVMF

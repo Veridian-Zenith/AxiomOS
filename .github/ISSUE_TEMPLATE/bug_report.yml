@@ -1,0 +1,37 @@
+name: Bug Report
+description: Report a bug to help us improve AxiomOS
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to fill out this bug report!
+  - type: textarea
+    id: bug-description
+    attributes:
+      label: Describe the bug
+      description: A clear and concise description of what the bug is.
+      placeholder: Describe what happened...
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: How did you encounter this bug?
+      placeholder: |
+        1. Run `tools/run-qemu.sh`
+        2. Wait for bootloader to finish
+        3. See kernel panic at address...
+    validations:
+      required: true
+  - type: textarea
+    id: expected-behavior
+    attributes:
+      label: Expected Behavior
+      description: What did you expect to happen?
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Any other context, such as QEMU version, hardware specs, or specific commits.
