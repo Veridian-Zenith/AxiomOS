@@ -38,7 +38,9 @@ graph TD
 ```
 
 ## Modular Hardware Abstraction
+
 To ensure AxiomOS remains portable, the VMM will be structured into a **Hardware Abstraction Layer (HAL)**.
+
 - **Paging Policies:** Paging structures, `invlpg` routines, and TLB management will be encapsulated behind a `VirtualMemoryHAL` interface.
 - **Hardware-Specific Modules:** Porting to new hardware will involve implementing a new `arch` module that satisfies the `VirtualMemoryHAL` interface.
 - **Drop-in replacement:** The kernel will query the HAL at compile-time (using C++ concepts or template specialization) to select the appropriate hardware driver.
