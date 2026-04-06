@@ -1,48 +1,57 @@
 # Contributing to AxiomOS
 
-First off, thanks for taking the time to contribute!
+AxiomOS is a high-fidelity project requiring precision and strict adherence to architectural standards. We welcome contributions that align with our "Silicon Sovereign" philosophy.
 
-All types of contributions are encouraged and valued. See the [Table of Contents](#table-of-contents) for different ways to help and details about how this project handles them. Please make sure to read the relevant section before making your contribution. It will make it a lot easier for us maintainers and smooth out the experience for all involved. The community looks forward to your contributions. 🎉
+## 🛠 Technical Requirements
 
-> And if you like the project, but just don't have time to contribute, that's fine too. There are other easy ways to support the project and show your appreciation, which we would also be very happy about:
->
-> - Star the project
-> - Tweet about it
-> - Refer this project in your project's readme
-> - Mention the project at local meetups and tell your friends/colleagues
-> - Optionally, you can also support the project financially by sponsoring it on GitHub Sponsors or contacting us about other ways to contribute financially. This is not expected at all, but it would be very much appreciated and would help us obtain better tools to dedicate more time to the project and make it even better.
+To maintain our performance and security guarantees, all contributions must adhere to the following stack:
 
-## Table of Contents
+* **Language:** C++26 (strictly freestanding for kernel components).
+* **Compiler:** LLVM / Clang 22.1+.
+* **Standards:** Zero-cost abstractions only. No exceptions, no RTTI, no third-party libraries unless explicitly approved.
 
-- [Code of Conduct](#code-of-conduct)
-- [How Can I Contribute?](#how-can-i-contribute)
-  - [Reporting Bugs](#reporting-bugs)
-  - [Suggesting Enhancements](#suggesting-enhancements)
-  - [Initiating a Discussion](#initiating-a-discussion)
+## 🏗 The Axiom Standard
 
-## Code of Conduct
+All module development must strictly adhere to **The Axiom Standard** (defined in Phase 0):
 
-This project and everyone participating in it is governed by the [AxiomOS Code of Conduct](CODE_OF_CONDUCT.md). By participating, you are expected to uphold this code.
+1. **Contract Headers (.hpp):** Interfaces must be defined in pure header files that specify the "contract" between modules. These headers must be zero-dependency and contains no implementation details that would leak internal state.
+2. **No Global State:** Modules are strictly forbidden from maintaining global or static state. All context must be explicitly passed through interface methods.
+3. **Standalone Verifiability:** Each module must be buildable and testable in isolation.
 
-## How Can I Contribute?
+## 🛡 "Least-Privilege" Kernel Design
 
-### Reporting Bugs
+AxiomOS follows a strict "Least-Privilege" model for hardware access:
 
-- Check if there is already an issue that reports the same problem.
-- Use the **Bug report** template in the Issues section.
+1. **Registry Core:** Only handles memory mapping, scheduling, and interrupt routing.
+2. **Plug-in I/O:** All hardware drivers (USB, NVMe, Graphics) must run in isolated user-space contexts.
+3. **Isolation:** Use the `ServiceRegistry` and `SM-IPC` for communication between modules. Never bypass isolation layers unless optimizing a "hot path" approved by the core maintainers.
 
-### Suggesting Enhancements
+## 🔑 ID:0 Digital Signature Workflow
 
-- Open a new issue with the tag "enhancement".
-- Provide a clear and concise description of the feature you'd like to see.
+Security is not an afterthought in AxiomOS. All code executed within the system must be signed.
 
-### Initiating a Discussion
+* **Digital Signatures (ID:0):** Every kernel module and system service must be signed using the Ed25519 algorithm.
+* **Verification:** The Registry core (ID:0 Authority) verifies the signature of every binary before it is mapped into the address space.
+* **Contributor Workflow:**
+  * Pull requests must include a signature manifest for any new binaries or modules.
+  * Development builds can use a local "Debug Trust Root," but production-ready code must pass the central signature audit.
 
-If you have questions, ideas, or want to discuss the project's direction without opening a formal issue, please use the **GitHub Discussions** feature:
+## 🚀 How to Contribute
 
-1. Navigate to the **Discussions** tab of the AxiomOS repository.
-2. Select a relevant category (e.g., "Ideas", "Q&A", "General").
-3. Start a new discussion with a descriptive title.
-4. Provide as much context as possible to help the community understand your point.
+### 1. Identify a Phase
 
-We value open dialogue and encourage you to share your thoughts there!
+Review the `TODO.md` and `ROADMAP.md` files. We are currently executing in order from Phase 1 through Phase 5.
+
+### 2. Discussion First
+
+Before starting major work, open a **GitHub Discussion** in the "Architecture" category. This ensures your design aligns with the Alder Lake optimization goals.
+
+### 3. Submission Standards
+
+* **Clang-Format:** Use the provided `.clang-format` (LLVM style).
+* **Documentation:** All new functions must include Doxygen-style comments explaining hardware-level side effects.
+* **Testing:** Kernel changes must include a corresponding test case in `src/kernel/tests/`.
+
+---
+
+Thank you for helping us reclaim the silicon! 🖥️🛡️

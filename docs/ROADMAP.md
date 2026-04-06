@@ -1,69 +1,57 @@
-# AxiomOS: Strategic Roadmap
+# AxiomOS Architectural Roadmap (v1.0)
 
-This document defines the execution phases for **AxiomOS**, a performance-first, native operating system targeting **12th Gen Intel (Alder Lake)** hardware. Built exclusively with **C++26** and **LLVM 22.1**, the project rejects virtualization bloat in favor of direct hardware authority.
-
----
-
-## ✅ Phase 1: Minimal Bootable Kernel (COMPLETED)
-
-**Goal:** Establish a functional foundation that boots into a higher-half kernel with serial diagnostics.
-
-* **Toolchain:** Pure LLVM/Clang/LLD pipeline with `-std=c++26`.
-* **Bootloader:** UEFI application that loads ELF kernels and constructs `BootInfo`.
-* **Memory Transition:** Initial 4GiB identity-mapping to facilitate the jump to the higher-half.
-* **Kernel Entry:** Higher-half mapping at `0xFFFFFFFF80000000` with a System V ABI compliant entry point.
-* **Diagnostics:** Early UART 16550 serial driver for COM1 logging.
+This document defines the strategic execution phases for **AxiomOS**, a high-performance, native operating system targeting the **Intel Core i3-1215U** (Alder Lake) architecture. AxiomOS leverages **C++26** and **LLVM** to exercise direct hardware authority, optimizing for the unique hybrid core topology (2 P-cores, 4 E-cores) of the target platform.
 
 ---
 
-## ✅ Phase 2: Architectural Setup (COMPLETED)
+## Phase 1: The "Sentinel" (UEFI Boot-Bridge) [PLANNED]
 
-**Goal:** Transition from firmware-provided states to kernel-managed CPU and interrupt control.
+**Goal:** Establish a secure, high-integrity handoff from UEFI firmware to the AxiomOS kernel.
 
-* **CPU State:** ✅ GDT and TSS initialization logic is implemented.
-* **Interrupts:** ✅ IDT is implemented to handle mandatory exceptions.
-* **APIC:** ✅ Basic setup for Local APIC and IOAPIC is in place.
-* **Memory Purity:** ✅ UEFI mappings are discarded and replaced by PMM.
+- **UEFI Runtime Integration:** Leverages UEFI services for initial hardware discovery and memory map acquisition.
+- **ELF64 Loader:** Robust parsing of the kernel executable, ensuring correct segment alignment and protection attributes.
+- **Higher-Half Transition:** Establishes the initial Paging (PML4) to map the kernel into the `0xFFFFFFFF80000000` virtual address space.
+- **Boot Diagnostics:** Early serial output (UART 16550) for real-time boot tracking.
+
+## Phase 2: The "Registry" (Micro-Monolithic Kernel) [PLANNED]
+
+**Goal:** A service-oriented kernel core that manages hardware resources with zero-cost abstractions.
+
+- **Hybrid-Aware Scheduling:** Optimized task distribution across Intel's Performance (P-cores) and Efficiency (E-cores) using the Intel Thread Director insights where applicable.
+- **Memory Sovereignty:**
+  - **PMM (Physical Memory Manager):** Bitmap-based allocation managing the 14GiB system RAM.
+  - **VMM (Virtual Memory Manager):** Recursive paging and kernel heap (Slab/Buddy) implementation.
+- **Interrupt Architecture:** Low-latency IDT and APIC (Local/IO) configuration for precise hardware event handling.
+- **Service Registry:** A central, high-speed lookup for kernel-level services, facilitating a modular but single-address-space design.
+
+## Phase 3: The "Plug-in" I/O (User-Space Drivers) [PLANNED]
+
+**Goal:** Shift hardware drivers out of the core kernel to enhance system resilience.
+
+- **Driver Isolation:** Drivers run in isolated contexts, communicating via the Service Registry.
+- **PCIe Enumeration:** Native discovery and management of the Alder Lake PCH components.
+- **USB 3.2 xHCI:** High-speed I/O stack for external peripherals.
+
+## Phase 4: The "Axiom-VFS" (3-Boot Storage) [PLANNED]
+
+**Goal:** A high-performance virtual filesystem supporting multi-boot and native storage.
+
+- **NVMe Native Driver:** Direct command submission to the KIOXIA NVMe controller.
+- **XFS Support:** Read/Write support for the primary XFS partition.
+- **3-Boot Logic:** Orchestrating the relationship between UEFI/FAT32 boot partitions and the main OS storage.
+
+## Phase 5: The "Fish" Shell [PLANNED]
+
+**Goal:** A modern, ergonomics-focused user interface and command-line environment.
+
+- **System V ABI Userspace:** Full support for standard C++26 userspace applications.
+- **Graphics Output:** Utilizing the Intel UHD Graphics (64 EUs) via GOP and eventually native DRM/KMS.
+- **The Fish Shell:** A performance-tuned, user-centric shell for interacting with the AxiomOS ecosystem.
 
 ---
+**Core Technology Stack:**
 
-## 🧵 Phase 3: Physical Memory Management (PMM) (IN PROGRESS)
-
-**Goal:** Implement a centralized physical memory allocator to manage raw system RAM.
-
-* **Current Status:** 🚧 PMM bitmap refactor and initial implementation underway.
-* **Map Analysis:** ✅ Parse the UEFI memory map to identify usable RAM versus reserved hardware regions.
-* **Bitmap Allocator:** 🚧 Refactoring bitmap-based PMM for tracking page availability.
-* **Page Primitives:** 🚧 Provide `alloc_page()` and `free_page()` as the foundation for higher-level memory layers.
-
----
-
-## 🔒 Phase 4: Virtual Memory Management (VMM) (IN PROGRESS)
-
-**Goal:** Establish a robust virtual memory subsystem for isolation and dynamic mapping.
-
-* **Higher-Half Jump:** 🚧 Implementation of the jump to the higher-half memory space.
-* **ABI Fix:** 🚧 Addressing ABI compatibility issues during the boot/kernel handoff.
-* **Recursive Paging:** 🚧 Implement a mechanism for the kernel to modify its own page tables efficiently.
-* **Kernel Heap:** Establish a kernel-level heap with `kmalloc` and `kfree` primitives.
-* **Dynamic Mapping:** Support on-the-fly mapping for MMIO (Memory Mapped I/O) and hardware regions.
-
----
-
-## 🧵 Phase 5: Kernel Services & Multitasking (NOT STARTED)
-
-**Goal:** Introduce task switching and hybrid-aware process management.
-
-* **Context Switching:** Implement save/restore logic for CPU registers across multiple tasks.
-* **Hybrid Scheduler:** Initial scheduler optimized for the **2 Performance cores** and **4 Efficiency cores** of the i3-1215U.
-* **User Mode:** Define the syscall interface and initial user-mode stack architecture.
-
----
-
-## 💿 Phase 6: Drivers & User Ecosystem (NOT STARTED)
-
-**Goal:** Expand native hardware compatibility and launch the initial user environment.
-
-* **Native Storage:** Implement high-performance **NVMe** support and a native **XFS** primary filesystem driver.
-* **I/O Subsystem:** USB 3.0 (xHCI) and Graphics (GOP/Intel Xe) integration.
-* **Userspace Foundation:** Launch the first user process and a minimal freestanding C++ standard library.
+- **Language:** C++26 (Freestanding)
+- **Compiler:** LLVM / Clang 22.1
+- **Architecture:** x86_64 (Intel Alder Lake)
+- **Memory Model:** Pure 64-bit, Higher-Half Kernel

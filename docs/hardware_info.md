@@ -1,121 +1,79 @@
-# Hardware Information
+# System Hardware Information
 
-This document provides a summary of the system's hardware, excluding specific identifiers and usage statistics.
+This document provides detailed hardware specifications for the AxiomOS development and testing environment.
 
-## CPU
+## 1. Processor (CPU)
 
-- **Model:** Intel(R) Core(TM) i3-1215U CPU @ 1.20GHz
-- **Product Collection:** 12th Generation Intel® Core™ i3 Processors
-- **Code Name:** Products formerly Alder Lake
-- **Processor Number:** i3-1215U
-- **Lithography:** Intel 7
-- **Architecture:** x86_64
-- **CPU op-mode(s):** 32-bit, 64-bit
-- **Byte Order:** Little Endian
-- **Vendor ID:** GenuineIntel
+- **Model**: 12th Gen Intel(R) Core(TM) i3-1215U
+- **Architecture**: Alder Lake-UP3 (x86_64)
+- **Topology**:
+  - **Total Cores**: 6
+  - **Total Threads**: 8
+  - **P-cores (Performance)**: 2 Cores / 4 Threads (Cores 0-1)
+  - **E-cores (Efficiency)**: 4 Cores / 4 Threads (Cores 2-5)
+- **Frequencies**:
+  - **P-core Max**: 4.40 GHz
+  - **E-core Max**: 3.30 GHz (Base listed as 0.9 - 1.2 GHz in power profiles)
+  - **Current Scaling**: 400 MHz - 4400 MHz
+- **Cache Hierarchy**:
+  - **L1d**: 224 KiB (6 instances)
+  - **L1i**: 320 KiB (6 instances)
+  - **L2**: 4.5 MiB (3 instances - Shared per P-core pair/E-core cluster)
+  - **L3**: 10 MiB (1 instance - Shared)
+- **Instruction Set Extensions**:
+  - AVX, AVX2, AVX-VNNI
+  - SHA, AES, VAES, VPCLMULQDQ
+  - VT-x (Virtualization)
+  - Intel Control-Flow Enforcement Technology (CET): User-mode Shadow Stack (user_shstk), Indirect Branch Tracking (ibt)
+- **Microcode**: `0x43b`
 
-### CPU Specifications
+## 2. Memory (RAM)
 
-- **Total Cores:** 6
-- **# of Performance-cores:** 2
-- **# of Efficient-cores:** 4
-- **Total Threads:** 8
-- **Max Turbo Frequency:** 4.40 GHz
-- **Performance-core Max Turbo Frequency:** 4.40 GHz
-- **Efficient-core Max Turbo Frequency:** 3.30 GHz
-- **Cache:** 10 MB Intel® Smart Cache
-- **Processor Base Power:** 15 W
-- **Maximum Turbo Power:** 55 W
+- **Total Capacity**: 16 GiB (Reported as ~15GiB usable)
+- **Configuration**: Dual-Channel (2x 8GiB SODIMM)
+  - **Slot 1**: 8 GiB DDR4 3200 MT/s (Samsung M471A1K43EB1-CWE)
+  - **Slot 2**: 8 GiB DDR4 3200 MT/s (Micron 4ATF1G64HZ-3G2F1)
+- **Voltage**: 1.2 V
+- **Maximum Supported**: 64 GiB
 
-### Memory Specifications
+## 3. Storage
 
-- **Max Memory Size (dependent on memory type):** 64 GB
-- **Memory Types:**
-  - Up to DDR5 4800 MT/s
-  - Up to DDR4 3200 MT/s
-  - Up to LPDDR5 5200 MT/s
-  - Up to LPDDR4x 4267 MT/s
-- **Max # of Memory Channels:** 2
-- **ECC Memory Supported:** No
+- **Device**: KIOXIA KBG50ZNV256G (NVMe SSD)
+- **Controller**: KIOXIA Corporation NVMe SSD Controller BG5 (DRAM-less)
+- **Interface**: PCIe G4 x4 (NVM Express 1.4)
+- **Capacity**: 256 GB (238.5 GiB)
+- **Partitioning**:
+  - `nvme0n1p1`: 1 GiB (EFI/System)
+  - `nvme0n1p2`: 237.5 GiB (Root/Data)
 
-### GPU Specifications
+## 4. Graphics (GPU)
 
-- **GPU Name:** Intel® UHD Graphics for 12th Gen Intel® Processors
-- **Graphics Max Dynamic Frequency:** 1.10 GHz
-- **Graphics Output:** eDP 1.4b, DP 1.4a, HDMI 2.1
-- **Execution Units:** 64
-- **DirectX* Support:** 12.1
-- **OpenGL* Support:** 4.6
-- **OpenCL* Support:** 3.0
-- **Vulkan* Support:** 1.4
-- **# of Displays Supported:** 4
-- **Device ID:** 0x46B3
+- **Controller**: Intel Corporation Alder Lake-UP3 GT1 [UHD Graphics] (rev 0c)
+- **Device Name**: Onboard IGD
+- **Memory**:
+  - 16 MiB Non-prefetchable BAR
+  - 256 MiB Prefetchable BAR
+- **Driver**: `xe` (Intel Xe Driver)
+- **Features**: GOP (Graphics Output Protocol) Support for UEFI boot.
 
-### Advanced Technologies
+## 5. Motherboard & Firmware
 
-- **Intel® Gaussian & Neural Accelerator:** 3.0 (Least likely to be supported)
-- **Intel® Thread Director:** Yes
-- **Intel® Smart Sound Technology:** Yes
-- **Intel® Deep Learning Boost (Intel® DL Boost) on CPU:** Yes
-- **Intel® Hyper-Threading Technology:** Yes
-- **Instruction Set:** 64-bit
-- **Instruction Set Extensions:** Intel® SSE4.1, Intel® SSE4.2, Intel® AVX2
+- **System**: HP ProBook 450 15.6 inch G9 Notebook PC
+- **Motherboard**: HP Model 8978 (KBC Version 07.74.00)
+- **Firmware (BIOS/UEFI)**:
+  - **Vendor**: HP
+  - **Version**: U72 Ver. 01.17.00
+  - **Release Date**: 11/06/2025
+  - **Mode**: UEFI (Secure Boot capable)
+  - **SMBIOS**: 3.4
+- **PCI ECAM Range**: `[bus 00-ff]`
 
-### Security & Reliability
+## 6. Network & Connectivity
 
-- **Intel® Threat Detection Technology (TDT):** Yes
-- **Intel® Control-Flow Enforcement Technology:** Yes
-- **Intel® AES New Instructions:** Yes
-- **Intel® OS Guard:** Yes
-- **Execute Disable Bit:** Yes
-- **Intel® Boot Guard:** Yes
-- **Mode-based Execute Control (MBEC):** Yes
-- **Intel® Virtualization Technology (VT-x):** Yes
-- **Intel® Virtualization Technology for Directed I/O (VT-d):** Yes
-- **Intel® VT-x with Extended Page Tables (EPT):** Yes
+- **Wireless**: Realtek RTL8852BE PCIe 802.11ax (Wi-Fi 6)
+- **Ethernet**: Realtek RTL8111/8168/8211/8411 Gigabit Ethernet
+- **Audio**: Intel Alder Lake PCH-P High Definition Audio (using `sof-audio-pci-intel-tgl`)
 
-## Disks
+## 7. Kernel Boot Parameters (Current)
 
-- **zram0:** swap (optional)
-- **nvme0n1p1:** vfat
-- **nvme0n1p2:** xfs
-- **NVMe Model:** KBG50ZNV256G KIOXIA
-
-## Memory
-
-- **Total Memory:** 14Gib
-- **Total Swap:** 12Gib (Always 2GiB less than total RAM)
-
-## PCI Devices
-
-- Host bridge: Intel Corporation Device [8086:4609] (rev 04)
-- VGA compatible controller: Intel Corporation Alder Lake-UP3 GT1 [UHD Graphics] [8086:46b3] (rev 0c)
-- Signal processing controller: Intel Corporation Alder Lake Innovation Platform Framework Processor Participant [8086:461d] (rev 04)
-- PCI bridge: Intel Corporation 12th Gen Core Processor PCI Express x4 Controller #0 [8086:464d] (rev 04)
-- PCI bridge: Intel Corporation 12th Gen Core Processor PCI Express x4 Controller #2 [8086:463d] (rev 04)
-- System peripheral: Intel Corporation 12th Gen Core Processor Gaussian & Neural Accelerator [8086:464f] (rev 04)
-- USB controller: Intel Corporation Alder Lake-P Thunderbolt 4 USB Controller [8086:461e] (rev 04)
-- USB controller: Intel Corporation Alder Lake PCH USB 3.2 xHCI Host Controller [8086:51ed] (rev 01)
-- RAM memory: Intel Corporation Alder Lake PCH Shared SRAM [8086:51ef] (rev 01)
-- Serial bus controller: Intel Corporation Alder Lake PCH Serial IO I2C Controller #0 [8086:51e8] (rev 01)
-- Communication controller: Intel Corporation Alder Lake PCH HECI Controller [8086:51e0] (rev 01)
-- PCI bridge: Intel Corporation Device [8086:51be] (rev 01)
-- PCI bridge: Intel Corporation Alder Lake PCH-P PCI Express Root Port #9 [8086:51bf] (rev 01)
-- Communication controller: Intel Corporation Alder Lake PCH UART #0 [8086:51a8] (rev 01)
-- Serial bus controller: Intel Corporation Alder Lake SPI Controller [8086:51aa] (rev 01)
-- ISA bridge: Intel Corporation Alder Lake PCH eSPI Controller [8086:5182] (rev 01)
-- Multimedia audio controller: Intel Corporation Alder Lake PCH-P High Definition Audio Controller [8086:51c8] (rev 01)
-- SMBus: Intel Corporation Alder Lake PCH-P SMBus Host Controller [8086:51a3] (rev 01)
-- Serial bus controller: Intel Corporation Alder Lake-P PCH SPI Controller [8086:51a4] (rev 01)
-- Non-Volatile memory controller: KIOXIA Corporation NVMe SSD Controller BG5 (DRAM-less) [1e0f:000c]
-- Network controller: Realtek Semiconductor Co., Ltd. RTL8852BE PCIe 802.11ax Wireless Network Controller [10ec:b852]
-- Ethernet controller: Realtek Semiconductor Co., Ltd. RTL8111/8168/8211/8411 PCI Express Gigabit Ethernet Controller [10ec:8168] (rev 15)
-
-## USB Devices
-
-- ID 1d6b:0002 Linux Foundation 2.0 root hub
-- ID 1d6b:0003 Linux Foundation 3.0 root hub
-- ID 1d6b:0002 Linux Foundation 2.0 root hub
-- ID 0408:5483 Quanta Computer, Inc. HP HD Camera
-- ID 0bda:b85c Realtek Semiconductor Corp. Bluetooth Radio
-- ID 1d6b:0003 Linux Foundation 3.0 root hub
+`initrd=intel-ucode.img initrd=\initramfs-linux-cachyos-eevdf-lto.img root=UUID=... rw nowatchdog quiet splash i915.force_probe=!46b3 xe.force_probe=46b3 intel_iommu=on iommu=pt intel_hfi=on`

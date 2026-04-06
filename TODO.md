@@ -1,156 +1,117 @@
-# AxiomOS Development Roadmap
+# AxiomOS Development TODO
 
-> **Core Philosophy:** The system prioritizes resilience over brittleness. For any operation, it will first attempt the expected path. If that fails, it will attempt a set of reasonable alternatives. If the request is illogical, impossible, or potentially malicious, it will be met with a "Strict Denial," which includes a descriptive alert and protective measures.
+## 0️⃣ Phase 0: The Axiom Standard (The Contract)
 
-## Development Strategy
+*Establish the foundational constraints and interface patterns that guarantee modularity and performance.*
 
-* **Target-First, Abstract-Always:** The kernel architecture must strictly target the hardware documented in [docs/hardware_info.md](./docs/hardware_info.md) for current implementation efficiency.
-* **Pluggable Design:** Every hardware-dependent subsystem (memory, interrupts, drivers) must be implemented behind clean interfaces, allowing future hardware abstraction layers (HAL) or device-specific modules to be swapped in without modifying the kernel core.
-
-## Kernel Architecture Choice
-
-* **Design:** A **highly-modular, service-oriented kernel core**.
-* **Rationale:** To maximize hardware authority and minimize latency while maintaining unparalleled modularity. By operating in a single address space (avoiding traditional context-switch overhead), we eliminate the bottlenecks of monolithic systems while bypassing the performance hits of microkernel message-passing.
-* **Modularity (The Service-Oriented Approach):** This is *not* a standard monolithic kernel. It employs a strict **Service-Oriented Architecture (SOA)** internally. All subsystems (Memory, Interrupts, Drivers, I/O) are designed as independent modules with well-defined APIs and communicate through a central `ServiceRegistry`. This ensures that any part of the system—from memory allocators to hardware drivers—can be swapped or hot-loaded without architectural changes.
-* **Performance:** Efficiency is achieved by reducing abstraction layers, not by coupling components. We provide "zero-cost" abstractions through C++26 features, ensuring that the modular structure does not impose runtime performance penalties.
-
----
-
-## 0️⃣ Phase 0: Project Foundation & Build System
-
-*The goal of this phase is to establish a build environment that can compile our two main components: the UEFI bootloader and the ELF kernel.*
-
-* [x] **1. `CMakeLists.txt` Setup:**
-  * [x] Define two primary targets:
-    * [x] `bootloader`: Compiles `src/bootloader/**.cpp` using the `x86_64-unknown-uefi` target triple to produce a PE/COFF executable (`.efi`).
-    * [x] `kernel`: Compiles `src/kernel/**.cpp` and `src/kernel/**.S` into a freestanding, higher-half ELF64 executable.
-  * [x] Enforce strict compiler flags (`-Wall`, `-Wextra`, `-Werror`, `-pedantic`).
-  * [x] Set C++ standard to C++26 (`-std=c++26`).
-  * [x] Disable features incompatible with freestanding environments (`-fno-exceptions`, `-fno-rtti`, `-nostdlib`, `-fno-stack-protector`).
-* [x] **2. `tools/run-qemu.sh` Script:**
-  * [x] **Automation:** The script must perform all build, imaging, and execution steps.
-  * [x] **Build:** Call CMake/Ninja to build the project.
-  * [x] **Imaging:**
-    * [x] Create a 64MB FAT32 disk image (`axiom.img`).
-    * [x] Create the directory structure `EFI/BOOT/`.
-    * [x] Copy `bootloader.efi` to `EFI/BOOT/BOOTX64.EFI`.
-    * [x] Copy `kernel.elf` to the root directory.
-  * [x] **Execution:** Launch `qemu-system-x86_64` with:
-    * [x] Local, user-owned OVMF firmware files.
-    * [x] The created disk image.
-    * [x] Serial port redirected to `stdio`.
-    * [x] **Crucially:** Add `-d int,cpu_reset -no-reboot` flags for detailed fault analysis.
+- [ ] **0.1 Contract Headers (.hpp)**
+  - [ ] Define the header-only contract standard for all kernel-level interfaces.
+  - [ ] Enforce zero-dependency inclusion for contract headers.
+- [ ] **0.2 State Sovereignty**
+  - [ ] Audit and remove any potential global state from core components.
+  - [ ] Implement explicit context passing for all service interactions.
+- [ ] **0.3 Execution Strategy**
+  - [ ] **Standalone Builds:** Enable per-module compilation and unit testing.
+  - [ ] **Linux-based Test Harness:** Develop a mock environment for rapid logic validation.
+  - [ ] **Hardware Deployment:** Finalize the pipeline for bare-metal HP ProBook 450 G9 flashing.
 
 ---
 
-## 1️⃣ Phase 1: UEFI Bootloader
+## 1️⃣ Phase 1: The "Sentinel" (UEFI Boot-Bridge)
 
-*The bootloader is the bridge from firmware to our code. Its only job is to prepare the system and hand off control to the kernel.*
+*The Sentinel establishes the bridge from firmware to our code, ensuring a secure and known environment.*
 
-* [x] **1. Entry Point & GOP:**
-  * [x] Create `src/bootloader/main.cpp`.
-  * [x] Implement `efi_main`.
-  * [x] Locate the Graphics Output Protocol (GOP) to get the framebuffer address and screen resolution.
-* [x] **2. File Loading:**
-  * [x] Implement logic to find and open the `kernel.elf` file from the FAT32 volume.
-* [x] **3. ELF Parsing & Loading:**
-  * [x] Read the ELF64 header.
-  * [x] Iterate through the program headers, find `PT_LOAD` segments.
-  * [x] For each segment, allocate physical memory pages using the UEFI `AllocatePages` service and copy the segment data into them.
-* [x] **4. Memory Mapping & Handoff:**
-  * [x] Get the UEFI memory map.
-  * [x] Create a new set of 4-level page tables (PML4).
-    * [x] **Identity-map** the first 4GiB of physical memory.
-    * [x] **Map the loaded kernel segments** to their higher-half virtual addresses (`0xFFFFFFFF80000000`+).
-  * [x] **Construct the `BootInfo` struct:** This C-style struct will contain framebuffer details, UEFI memory map, etc.
-  * [x] **`ExitBootServices()`:** The point of no return.
-  * [x] Load the new PML4 into the `CR3` register.
-  * [x] Jump to the kernel's entry point, passing the address of the `BootInfo` struct.
+- [ ] **1.1 Project Foundation & Toolchain**
+  - [ ] Configure `CMakeLists.txt` to enforce `clang-22` and `-std=c++26`.
+  - [ ] Implement freestanding environment flags (`-ffreestanding`, `-fno-exceptions`, `-fno-rtti`).
+  - [ ] Create `tools/run-qemu.sh` for UEFI-aware disk image synthesis.
+- [ ] **1.2 UEFI Entry & Graphics**
+  - [ ] Implement `efi_main` entry point with error-handling for `EFI_SYSTEM_TABLE`.
+  - [ ] Query and select optimal resolution via Graphics Output Protocol (GOP).
+  - [ ] Implement early screen logging (fallback for serial).
+- [ ] **1.3 ELF64 Kernel Loader**
+  - [ ] Implement robust ELF64 header validation (Magic, Type, Machine).
+  - [ ] Map `PT_LOAD` segments into higher-half virtual memory (`0xFFFFFFFF80000000`).
+  - [ ] Zero-fill `.bss` section in accordance with program headers.
+- [ ] **1.4 Secure Handoff**
+  - [ ] Construct `BootInfo` structure containing UEFI Memory Map and ACPI pointers.
+  - [ ] Implement `ExitBootServices` with map-integrity verification.
+  - [ ] Jump to kernel `_start` with `%rdi` pointing to `BootInfo`.
 
 ---
 
-## 2️⃣ Phase 2: Kernel - The First Lines of Code
+## 2️⃣ Phase 2: The "Registry" (Micro-Monolithic Kernel)
 
-*The bootloader is the bridge from firmware to our code. Its only job is to prepare the system and hand off control to the kernel.*
+*The Registry core manages CPU, interrupts, and memory as high-performance services.*
 
-* [x] **1. Kernel Entry (`entry.S`):**
-  * [x] Create `src/kernel/arch/x86_64/entry.S`.
-  * [x] Define the `_start` symbol (ELF entry point).
-  * [x] **Critical:** Allocate a 16KiB BSS section for the initial kernel stack.
-  * [x] Set the `RSP` register to the top of this stack.
-  * [x] Move the `BootInfo` pointer from `rcx` (UEFI ABI) to `rdi` (System V ABI).
-  * [x] Call the C++ `kmain` function.
-  * [x] **Status:** Initial boot crash resolved; higher-half paging and stack initialization require further debugging.
-* [x] **2. Serial Driver:**
-  * [x] Create `src/kernel/utils/serial.cpp` and `.hpp`.
-  * [x] Implement simple, polling-based I/O for the COM1 serial port.
-  * [x] Provide only three functions: `init()`, `putchar(char)`, and `puts(const char*)`.
-  * [x] **No variadic functions (`printf`) will be implemented at this stage.**
-* [x] **3. Kernel Main (`kmain`):**
-  * [x] Create `src/kernel/main.cpp`.
-  * [x] The `kmain` function receives the `BootInfo` pointer.
-  * [x] **First Action:** Call `serial::init()`.
-  * [x] **Verification:** Print a welcome message and parse `BootInfo`, printing framebuffer/memmap details to the serial console.
-  * [x] Enter an infinite `hlt` loop.
-  * [x] **Goal:** Successfully boot and see clean, verifiable output in the QEMU console.
+- [ ] **2.1 Kernel Entry & Early Diagnostics**
+  - [ ] Define `_start` in `src/kernel/arch/x64/entry.S`.
+  - [ ] Establish initial 16KiB kernel stack and early GDT.
+  - [ ] Initialize polling-based UART 16550 driver for debug output.
+- [ ] **2.2 Memory Sovereignty**
+  - [ ] **Physical Memory Manager:** Implement bitmap-based allocator managing 14GiB RAM.
+  - [ ] **Virtual Memory Manager:** Implement recursive paging and 4-level PML4 management.
+  - [ ] **Kernel Heap:** Implement C++26 compatible Slab/Buddy allocator for `kmalloc`.
+- [ ] **2.3 Architectural Core**
+  - [ ] Initialize IDT (Interrupt Descriptor Table) and basic handlers.
+  - [ ] Configure Local APIC and I/O APIC for the Alder Lake SoC.
+  - [ ] Implement SMP (Symmetric Multi-Processing) for P-cores and E-cores.
+- [ ] **2.4 Service Registry & ID:0 Authority**
+  - [ ] Implement `axiom::kernel::ServiceRegistry` for lock-free service lookups.
+  - [ ] Implement Ed25519-based signature verification for all kernel modules.
+  - [ ] Enforce "ID:0" authority for all memory-mapping requests.
 
 ---
 
-## 3️⃣ Phase 3: Physical Memory Manager (PMM)
+## 3️⃣ Phase 3: The "Plug-in" I/O (User-Space Drivers)
 
-*The PMM is the foundation of all memory management. We will build it according to the Resilient System philosophy.*
+*Move hardware interaction into isolated, modular services.*
 
-* [ ] **1. Design the PMM API and Resilience Policy:**
-  * [ ] Create `src/kernel/mm/pmm.hpp`.
-  * [ ] **API:** `init(BootInfo*)`, `alloc_pages(count)`, `free_pages(address, count)`, `get_free_memory()`, `get_total_memory()`.
-  * [ ] **Resilience Policy (documented in the header):**
-    * [ ] **Reasonable Path:** First-fit search from the last allocation point.
-    * [ ] **Alternative Paths:**
-            1. [ ] If first search fails, restart search from the beginning.
-            2. [ ] *(Future Stub)* `alloc_discontiguous_pages()`
-            3. [ ] *(Future Stub)* Trigger memory compaction.
-            4. [ ] Fail with a specific error code (e.g., `OUT_OF_MEMORY`).
-    * [ ] **Strict Denial (Suspicious Acts):**
-      * [ ] `alloc_pages(0)`
-      * [ ] `free_pages` with a non-page-aligned address.
-      * [ ] `free_pages` for memory that is already free (double-free).
-      * [ ] `free_pages` for an address outside the managed range.
-      * [ ] **Action:** Print a verbose `[PMM-DENIAL]` alert and halt the kernel.
-* [ ] **2. Implementation (`allocator.cpp`):**
-  * [ ] Implement a bitmap allocator based on the design.
-  * [ ] The `init` function will find space for the bitmap and parse the UEFI memory map to populate it.
-* [ ] **3. Verification:**
-  * [ ] Create `src/kernel/tests/pmm.cpp`.
-  * [ ] Implement a `test_pmm()` function called from `kmain`.
-  * [ ] The test will:
-    * [ ] Allocate and free single pages.
-    * [ ] Allocate and free multi-page blocks.
-    * [ ] Verify that `get_free_memory()` counts are correct.
-    * [ ] **Test all Strict Denial cases** to ensure they are caught and reported correctly.
-  * [ ] **Goal:** A successful run of the test suite printed to the serial console, proving PMM reliability.
+- [ ] **3.1 PCIe & Bus Discovery**
+  - [ ] Scan MCFG table to locate PCIe configuration space.
+  - [ ] Enumerate Alder Lake PCH devices and identify KIOXIA NVMe/Intel UHD Graphics.
+- [ ] **3.2 Driver Isolation Framework**
+  - [ ] Implement Ring 3 process creation for drivers.
+  - [ ] Define Shared-Memory IPC (SM-IPC) for zero-copy data transfer.
+  - [ ] Map MMIO BARs directly into driver address spaces with kernel-mediated protection.
+- [ ] **3.3 Primary Driver Set (Port & Adapt Strategy)**
+  - [ ] Implement xHCI driver for USB 3.2 support.
+  - [ ] **Ported Graphics:** Adapt Intel `xe` driver logic for basic Alder Lake UHD Graphics support.
+  - [ ] **Ported Audio:** Adapt Intel `sof` (Sound Open Firmware) for audio I/O initialization.
+  - [ ] **Firmware Integration:** Implement a loader for legally redistributable firmware binaries (DSP/GPU).
+- [ ] **3.4 Native Transition (Long-term)**
+  - [ ] Refactor ported xHCI into native Plug-in I/O module.
+  - [ ] Implement native UHD Graphics framebuffer control, replacing ported components.
 
 ---
 
-## 4️⃣ Phase 4: Modular VMM and Service Registry
+## 4️⃣ Phase 4: The "Axiom-VFS" (3-Boot Storage)
 
-*Establish a pluggable architecture for virtual memory and kernel services.*
+*High-speed storage and filesystem orchestration.*
 
-* [ ] **1. Paging Interface:**
-  * [ ] Define `axiom::mm::PagingInterface` as a C++26 concept/interface for page table management.
-  * [ ] Implement `x86_64::PageTableManager` compliant with `PagingInterface`.
-* [ ] **2. Service Registry:**
-  * [ ] Create `axiom::kernel::ServiceRegistry`.
-  * [ ] Allow core services (Memory, Interrupts, Drivers) to register themselves at boot.
-  * [ ] Ensure all lookups are O(1) or O(log N) for performance.
+- [ ] **4.1 NVMe Native Stack**
+  - [ ] Implement native NVMe controller initialization for KIOXIA BG5.
+  - [ ] Develop high-priority Submission/Completion queue management.
+- [ ] **4.2 Filesystem Hierarchy**
+  - [ ] **Boot 1:** Implement FAT32 read support for UEFI partition.
+  - [ ] **Boot 2:** Implement high-integrity read-only loader for the core kernel.
+  - [ ] **Boot 3:** Implement full XFS driver for primary system partition.
+- [ ] **4.3 VFS Features**
+  - [ ] Implement "Pinning System" for permanent memory-mapping of critical binaries.
+  - [ ] Develop HighwayHash-based data integrity verification for all reads.
 
 ---
 
-## 5️⃣ Phase 5: Lightweight Driver Framework
+## 5️⃣ Phase 5: The "Fish" Shell
 
-*Drivers must be modular and performant.*
+*The user environment and system interaction.*
 
-* [ ] **1. Driver Abstraction:**
-  * [ ] Define `axiom::drivers::Device` interface.
-  * [ ] Implement `serial` driver using this interface.
-* [ ] **2. Modular Loading:**
-  * [ ] Support dynamic registration of drivers via the Service Registry.
+- [ ] **5.1 Userspace Foundation**
+  - [ ] Define System V ABI compliant syscall interface.
+  - [ ] Implement process management and signal handling.
+- [ ] **5.2 Hardware-Accelerated UI**
+  - [ ] Develop native DRM/KMS-style interface for Intel UHD Graphics.
+  - [ ] Implement low-latency terminal rendering pipeline.
+- [ ] **5.3 The Fish Shell Implementation**
+  - [ ] Build C++26 optimized CLI with real-time hardware telemetry overlays.
+  - [ ] Implement signed-execution enforcement in the shell's process launcher.

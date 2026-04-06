@@ -1,61 +1,44 @@
-# AxiomOS: Hardware Authority
+# AxiomOS: The Silicon Sovereign
 
-A modern, **UEFI-only**, 64-bit operating system for x86_64, built from scratch in **C++26** using **LLVM/Clang 22.1**.
+A modern, **UEFI-native**, 64-bit operating system for x86_64, built from the ground up in **C++26** using the **LLVM 22.1** toolchain.
 
-AxiomOS is a rejection of modern software bloat. We don't do "virtual systems," hypervisors, or generic abstraction layers that throttle performance. This is a high-fidelity, native-only implementation designed to own the silicon.
+## 👁️ The Vision
 
----
+AxiomOS is a fundamental rejection of modern software abstraction layers. We don't virtualize; we dominate. By removing the "OS tax" imposed by legacy compatibility and third-party bloat, AxiomOS achieves a direct, high-fidelity relationship with the underlying silicon.
 
-## 🛠 Project Philosophy
+## 🛡️ Core Philosophy: Strictly No Third-Party Bloat
 
-* **Zero-Layer Execution:** No VT-x, no SVM, and no "guest" support. The kernel assumes absolute Ring 0 authority.
-* **Logical Identity Mapping:** We use the MMU for protection bits, but favor Identity Mapping to keep the logic lean—what you see in the code is what the hardware executes.
-* **Hardware-Specific Optimization:** Primary target is the **HP ProBook 450 G9** (Intel i3-1215U, Alder Lake). We optimize for the **2 Performance cores** and **4 Efficiency cores** natively.
-* **Modern Toolchain:** 100% LLVM-native. We leverage `std::expected`, `consteval`, and advanced pack indexing to keep the binary tight and fast.
+* **Zero-Dependency Kernel:** Every line of the "Registry" core is handwritten or statically verified. No external libraries, no "standard" libc headers that bring hidden baggage.
+* **Hardware Authority:** No VT-x, no SVM, and no "guest" support. The kernel assumes absolute Ring 0 authority.
+* **Least-Privilege Modularity:** While the kernel owns the hardware, drivers and services are isolated in user-space "Plug-ins" to ensure system-wide resilience.
 
-**Refer to [hardware_info.md](./docs/hardware_info.md) for the detailed base system specifications.**
+## 💻 Target Hardware: Intel Alder Lake
 
----
+AxiomOS is purpose-built for the **Intel Core i3-1215U** (Alder Lake) architecture, specifically the **HP ProBook 450 G9** platform.
 
-## 🚀 Current Status: Phase 3 (COMPLETE)
+* **Hybrid Core Topology:** Native scheduling optimized for **2 Performance cores (P-cores)** and **4 Efficiency cores (E-cores)**.
+* **Hardware-Specific I/O:** First-class support for Intel UHD Graphics (64 EUs) and KIOXIA NVMe storage.
 
-* **UEFI Bootloader:** Hand-written EFI application that handles ELF loading and memory map hand-off.
-* **Higher-Half Kernel:** Successfully mapped and executing at `0xFFFFFFFF80000000`.
-* **Architectural Setup:** GDT, IDT, and basic APIC support initialized.
-* **Early Logging:** UART 16550 serial driver for COM1 debug output.
-* **Memory PMM:** Physical memory manager implemented.
+## 🗺️ Architectural Roadmap (v1.0)
 
----
+The development of AxiomOS is structured into six distinct phases:
 
-## 🗺 Roadmap
+0. **Phase 0: The Axiom Standard (The Contract)** - Defining the `.hpp` contract headers and ensuring no global state.
+1. **[Phase 1: Sentinel (UEFI Boot-Bridge)](./docs/sentinel_spec.md)** - From firmware to kernel entry.
+2. **[Phase 2: Registry (Micro-Monolithic Kernel)](./docs/registry_spec.md)** - Resource sovereignty and ID:0 authority.
+3. **[Phase 3: Plug-in I/O (User-Space Drivers)](./docs/plugin_io_spec.md)** - Modular hardware isolation.
+4. **[Phase 4: Axiom-VFS (3-Boot Storage)](./docs/axiom_vfs_spec.md)** - High-speed NVMe and XFS integration.
+5. **[Phase 5: Fish Shell (Interaction Layer)](./docs/fish_shell_spec.md)** - The "Flow-State" user environment.
 
-Refer to [ROADMAP.md](./docs/ROADMAP.md) for detailed phase breakdown and future plans.
+## 🏗️ Building AxiomOS
 
----
-
-## 💬 Community and Discussions
-
-We use **GitHub Discussions** as our primary forum for Q&A, sharing ideas, and project updates.
-
-* **Ideas:** Suggest new features or architectural changes.
-* **Q&A:** Get help with building or understanding the kernel.
-* **Show and Tell:** Share what you've built or discovered using AxiomOS or any of its components.
-
-Please see our [CONTRIBUTING.md](CONTRIBUTING.md) guide for more details on how to contribute.
-
----
-
-## � Building & Testing
-
-```fish
+```bash
 # Requirements: CMake 3.25+, Clang/LLVM 22.1+, QEMU + OVMF
-cmake -B build -DCMAKE_BUILD_TYPE=Debug
+cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
 cmake --build build
 
 ./tools/run-qemu.sh
 ```
-
----
 
 ## ⚖️ License
 
