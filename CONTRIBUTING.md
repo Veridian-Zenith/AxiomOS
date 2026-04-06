@@ -46,7 +46,7 @@ Review the `TODO.md` and `ROADMAP.md` files. We are currently executing in order
 
 ### 2. Discussion First
 
-Before starting major work, open a **GitHub Discussion** in the "Architecture" category. This ensures your design aligns with the Alder Lake optimization goals.
+Before starting major work, open a **GitHub Discussion** in the "Architecture" category. This ensures your design aligns with the current optimization goals.
 
 ### 3. Submission Standards
 
