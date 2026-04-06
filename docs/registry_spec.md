@@ -8,7 +8,7 @@ The Registry is the AxiomOS kernel core. It adopts a "Micro-Monolithic" architec
 
 ### 2.1 PMM (Physical Memory Manager)
 
-- **Mechanism:** Bitmap-based allocation managing the full 14GiB system RAM.
+- **Mechanism:** Bitmap-based allocation managing system RAM.
 - **Optimization:** NUMA-aware (where applicable) and optimized for 4KiB, 2MiB (Large), and 1GiB (Huge) page sizes.
 - **Sovereignty:** Tracks ownership of physical frames to prevent unauthorized access across services.
 
@@ -25,13 +25,13 @@ The Registry is the AxiomOS kernel core. It adopts a "Micro-Monolithic" architec
 
 ## 3. Hybrid-Affinity Scheduler
 
-Optimized for the Intel Core i3-1215U (2 P-cores, 4 E-cores).
+Optimized for processors with hybrid core topologies (e.g., Performance and Efficiency cores).
 
-- **Core Tagging:** Each core is identified by its performance profile (Performance vs. Efficiency).
+- **Core Tagging:** Each core is identified by its performance profile (e.g., Performance vs. Efficiency).
 - **Task Affinity:**
   - **P-Cores:** Assigned high-throughput, low-latency, or compute-heavy threads (e.g., JIT compilers, active UI threads).
   - **E-Cores:** Assigned background tasks, telemetry, and low-priority I/O.
-- **Intel Thread Director (ITD):** Utilizes hardware feedback (via MSRs) to dynamically rebalance threads based on thermal and performance constraints.
+- **Hardware Feedback:** Utilizes hardware feedback mechanisms (such as the Intel Thread Director) to dynamically rebalance threads based on thermal and performance constraints.
 
 ## 4. ID:0 Authority (Digital Signatures)
 

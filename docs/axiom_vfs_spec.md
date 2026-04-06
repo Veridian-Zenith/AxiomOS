@@ -2,7 +2,7 @@
 
 ## 1. Overview
 
-Axiom-VFS is a high-performance virtual filesystem layer. It bridges the gap between hardware storage (NVMe) and user-space applications, providing a unified interface while optimizing for the unique characteristics of the Alder Lake platform and the KIOXIA NVMe controller.
+Axiom-VFS is a high-performance virtual filesystem layer. It bridges the gap between hardware storage and user-space applications, providing a unified interface while optimizing for the unique characteristics of the target architecture and the reference storage controller.
 
 ## 2. The "Pinning System"
 
@@ -28,13 +28,13 @@ A core integrity feature of AxiomOS is the "3-Boot Purge".
 - **Trigger:** Tracked by the Registry in the non-volatile UEFI variable space.
 - **Inclusion:** Automatically includes all RAM-backed directories.
 
-## 4. NVMe Data Sanity (KIOXIA BG5)
+## 4. Storage Controller Interface
 
-The VFS interacts directly with the KIOXIA NVMe controller using a native driver.
+The VFS interacts directly with the storage controller using a native driver.
 
 - **HighwayHash Checksumming:** Every data block (4KiB) is checksummed using **HighwayHash-64** during write operations. Checksums are stored as metadata and verified upon every read to detect silent data corruption.
 - **Direct Submission:** Uses high-priority submission queues (SQ) and completion queues (CQ) to minimize latency between the VFS request and hardware execution.
-- **Wear Leveling & Health:** The VFS monitors NVMe SMART data and exposes health telemetry through the Fish shell.
+- **Wear Leveling & Health:** The VFS monitors storage device health telemetry and exposes it through the Fish shell.
 
 ## 5. 3-Boot Storage Logic
 
@@ -46,11 +46,11 @@ AxiomOS manages its storage across three logical boot stages:
 
 ## 6. XFS Implementation
 
-- **Read/Write Support:** Full support for the primary XFS partition on the NVMe disk.
+- **Read/Write Support:** Full support for the primary filesystem partition on the storage device.
 - **Consistency:** Leverages XFS journaling for fast recovery after power loss.
 - **Coexistence:** Axiom-VFS can mount other partitions (e.g., NTFS, ext4) for read-only access in multi-boot scenarios.
 
 ## 7. Security
 
-- **Encrypted Volumes:** Support for full-disk encryption using the CPU's AES-NI instruction set.
+- **Encrypted Volumes:** Support for full-disk encryption using the hardware acceleration for encryption where available (e.g., AES-NI).
 - **Signed Storage:** The VFS can enforce digital signature verification for any executable read from the Boot 2 or Boot 3 partitions.

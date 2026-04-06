@@ -1,6 +1,6 @@
 # AxiomOS Architectural Roadmap (v1.0)
 
-This document defines the strategic execution phases for **AxiomOS**, a high-performance, native operating system targeting the **Intel Core i3-1215U** (Alder Lake) architecture. AxiomOS leverages **C++26** and **LLVM** to exercise direct hardware authority, optimizing for the unique hybrid core topology (2 P-cores, 4 E-cores) of the target platform.
+This document defines the strategic execution phases for **AxiomOS**, a high-performance, native operating system. AxiomOS leverages **C++26** and **LLVM** to exercise direct hardware authority, optimizing for the target architecture.
 
 ---
 
@@ -17,9 +17,9 @@ This document defines the strategic execution phases for **AxiomOS**, a high-per
 
 **Goal:** A service-oriented kernel core that manages hardware resources with zero-cost abstractions.
 
-- **Hybrid-Aware Scheduling:** Optimized task distribution across Intel's Performance (P-cores) and Efficiency (E-cores) using the Intel Thread Director insights where applicable.
+- **Hybrid-Aware Scheduling:** Optimized task distribution across different core types (e.g., Performance and Efficiency cores) using hardware feedback mechanisms where applicable.
 - **Memory Sovereignty:**
-  - **PMM (Physical Memory Manager):** Bitmap-based allocation managing the 14GiB system RAM.
+  - **PMM (Physical Memory Manager):** Bitmap-based allocation managing system RAM.
   - **VMM (Virtual Memory Manager):** Recursive paging and kernel heap (Slab/Buddy) implementation.
 - **Interrupt Architecture:** Low-latency IDT and APIC (Local/IO) configuration for precise hardware event handling.
 - **Service Registry:** A central, high-speed lookup for kernel-level services, facilitating a modular but single-address-space design.
@@ -29,14 +29,14 @@ This document defines the strategic execution phases for **AxiomOS**, a high-per
 **Goal:** Shift hardware drivers out of the core kernel to enhance system resilience.
 
 - **Driver Isolation:** Drivers run in isolated contexts, communicating via the Service Registry.
-- **PCIe Enumeration:** Native discovery and management of the Alder Lake PCH components.
+- **PCIe Enumeration:** Native discovery and management of platform controller components.
 - **USB 3.2 xHCI:** High-speed I/O stack for external peripherals.
 
 ## Phase 4: The "Axiom-VFS" (3-Boot Storage) [PLANNED]
 
 **Goal:** A high-performance virtual filesystem supporting multi-boot and native storage.
 
-- **NVMe Native Driver:** Direct command submission to the KIOXIA NVMe controller.
+- **Storage Controller Driver:** Direct command submission to the system's primary storage controller.
 - **XFS Support:** Read/Write support for the primary XFS partition.
 - **3-Boot Logic:** Orchestrating the relationship between UEFI/FAT32 boot partitions and the main OS storage.
 
@@ -45,13 +45,13 @@ This document defines the strategic execution phases for **AxiomOS**, a high-per
 **Goal:** A modern, ergonomics-focused user interface and command-line environment.
 
 - **System V ABI Userspace:** Full support for standard C++26 userspace applications.
-- **Graphics Output:** Utilizing the Intel UHD Graphics (64 EUs) via GOP and eventually native DRM/KMS.
-- **The Fish Shell:** A performance-tuned, user-centric shell for interacting with the AxiomOS ecosystem.
+- **Graphics Output:** Utilizing the graphics subsystem via firmware protocols and eventually native drivers.
+- **The Axiom Shell:** A performance-tuned, user-centric shell for interacting with the AxiomOS ecosystem.
 
 ---
 **Core Technology Stack:**
 
 - **Language:** C++26 (Freestanding)
 - **Compiler:** LLVM / Clang 22.1
-- **Architecture:** x86_64 (Intel Alder Lake)
+- **Architecture:** x86_64
 - **Memory Model:** Pure 64-bit, Higher-Half Kernel

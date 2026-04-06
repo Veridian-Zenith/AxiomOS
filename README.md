@@ -2,6 +2,8 @@
 
 A modern, **UEFI-native**, 64-bit operating system for x86_64, built from the ground up in **C++26** using the **LLVM 22.1** toolchain.
 
+> **Note:** AxiomOS is designed to be a portable, hardware-agnostic operating system. While it maintains a direct, high-fidelity relationship with the underlying silicon, it avoids hard-coding hardware-specific dependencies into its core architecture. Details regarding the initial reference hardware and target platform can be found in [**`docs/hardware_info.md`**](./docs/hardware_info.md).
+
 ## 👁️ The Vision
 
 AxiomOS is a fundamental rejection of modern software abstraction layers. We don't virtualize; we dominate. By removing the "OS tax" imposed by legacy compatibility and third-party bloat, AxiomOS achieves a direct, high-fidelity relationship with the underlying silicon.
@@ -12,14 +14,14 @@ AxiomOS is a fundamental rejection of modern software abstraction layers. We don
 * **Hardware Authority:** No VT-x, no SVM, and no "guest" support. The kernel assumes absolute Ring 0 authority.
 * **Least-Privilege Modularity:** While the kernel owns the hardware, drivers and services are isolated in user-space "Plug-ins" to ensure system-wide resilience.
 
-## 💻 Target Hardware: Intel Alder Lake
+## 🔐 Security and Signing
 
-AxiomOS is purpose-built for the **Intel Core i3-1215U** (Alder Lake) architecture, specifically the **HP ProBook 450 G9** platform.
+AxiomOS maintains a strict digital signature policy to ensure the integrity of the system:
 
-* **Hybrid Core Topology:** Native scheduling optimized for **2 Performance cores (P-cores)** and **4 Efficiency cores (E-cores)**.
-* **Hardware-Specific I/O:** First-class support for Intel UHD Graphics (64 EUs) and KIOXIA NVMe storage.
+* **Internal Development:** Signing is optional for private, user-side development (e.g., custom drivers or experimental modules).
+* **Public Contributions:** All production-ready items contributed to the public AxiomOS repository must include a valid digital signature.
 
-## 🗺️ Architectural Roadmap (v1.0)
+## �️ Architectural Roadmap (v1.0)
 
 The development of AxiomOS is structured into six distinct phases:
 

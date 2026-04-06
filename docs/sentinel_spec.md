@@ -9,23 +9,23 @@ The Sentinel is the AxiomOS bootloader, responsible for transitioning the system
 Sentinel utilizes UEFI services to interact with the firmware before exiting boot services:
 
 - **Memory Map:** Obtained via `GetMemoryMap()`. This map is translated into the AxiomOS physical memory descriptor format.
-- **GOP (Graphics Output Protocol):** Locates the `EFI_GRAPHICS_OUTPUT_PROTOCOL` to initialize the Intel UHD Graphics framebuffer.
+- **GOP (Graphics Output Protocol):** Locates the `EFI_GRAPHICS_OUTPUT_PROTOCOL` to initialize the Graphics framebuffer.
 - **File I/O:** Loads the kernel ELF64 binary from the EFI System Partition (ESP).
 
-## 3. ACPI Discovery (Alder Lake i3-1215U)
+## 3. ACPI Discovery
 
-To support the hybrid architecture, Sentinel must perform deep ACPI parsing:
+To support the target platform's architecture, Sentinel must perform deep ACPI parsing:
 
 - **RSDP/XSDT:** Locate the Root System Description Pointer and traverse the Extended System Descriptor Table (XSDT) using 64-bit physical addresses.
 - **MADT (Multiple APIC Description Table):**
-  - Enumerate all Local APICs to identify the 2 Performance cores and 4 Efficiency cores.
+  - Enumerate all Local APICs to identify the cores properly.
   - Locate I/O APICs for interrupt routing.
   - Identify NMI sources and Local APIC Address overrides.
 - **FADT (Fixed ACPI Description Table):** Retrieve hardware-reduced ACPI flags and power management register blocks.
 
 ## 4. GOP Framebuffer Setup
 
-- **Mode Selection:** Query available modes and select the highest resolution supported by the eDP/HDMI interface.
+- **Mode Selection:** Query available modes and select the highest resolution supported by the eDP/HDMI/VGA interface.
 - **Handover Info:**
   - `BaseAddress`: Physical start of the framebuffer.
   - `BufferSize`: Total size in bytes.
@@ -43,7 +43,7 @@ To support the hybrid architecture, Sentinel must perform deep ACPI parsing:
 
 ## 6. Handover Protocol (The System Map)
 
-Sentinel passes a pointer to a `BootInfo` structure (System Map) to the kernel entry point in `%rdi`. The protocol ensures a clean transition with all firmware state finalized.
+Sentinel passes a pointer to a `BootInfo` structure (System Map) to the kernel entry point in the primary argument register (e.g., `%rdi` on x86_64). The protocol ensures a clean transition with all firmware state finalized.
 
 ```cpp
 struct BootInfo {

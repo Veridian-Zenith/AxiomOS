@@ -36,6 +36,8 @@ Security is not an afterthought in AxiomOS. All code executed within the system 
   * Pull requests must include a signature manifest for any new binaries or modules.
   * Development builds can use a local "Debug Trust Root," but production-ready code must pass the central signature audit.
 
+  Note: Signing on the user side (such as people who develop their own drivers and modules but don't contribute publicly) is optional, but all items that are contributed publicly must have a signature on/in them for production items. For end-users who create their own modules, the requirement remains optional but highly recommended to maintain system integrity. (Keep keys local!)
+
 ## 🚀 How to Contribute
 
 ### 1. Identify a Phase
@@ -51,6 +53,7 @@ Before starting major work, open a **GitHub Discussion** in the "Architecture" c
 * **Clang-Format:** Use the provided `.clang-format` (LLVM style).
 * **Documentation:** All new functions must include Doxygen-style comments explaining hardware-level side effects.
 * **Testing:** Kernel changes must include a corresponding test case in `src/kernel/tests/`.
+* **Signing:** All items contributed publicly must include a digital signature for production builds. (User-side development remains optional).
 
 ---
 
