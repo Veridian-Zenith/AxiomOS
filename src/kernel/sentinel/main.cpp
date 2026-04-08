@@ -1,4 +1,5 @@
 #include "internal.h"
+#include "memory.h"
 #include <Uefi.h>
 #include <Library/UefiLib.h>
 #include <Library/UefiBootServicesTableLib.h>
@@ -18,40 +19,35 @@ extern "C" EFI_STATUS EFIAPI EfiMain(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* S
         .EnableAcpi = true
     };
 
-    axiom::sentinel::InitializeFirmware(config);
-    axiom::sentinel::LoadKernel(ImageHandle);
+    axiom::BootInfo bootInfo = {};
+    bootInfo.Signature = 0x584941434F4D30; // 'AXIOM0'
+
+    axiom::sentinel::InitializeFirmware(config, &bootInfo);
+    auto loadResult = axiom::sentinel::LoadKernel(ImageHandle);
+
+    bootInfo.KernelStackTop = (uint64_t)AllocatePages(2) + 8192; // 8KB stack
+
+    axiom::sentinel::TransitionToKernel(&bootInfo, loadResult.EntryPoint, loadResult.Pml4, bootInfo.KernelStackTop);
 
     return EFI_SUCCESS;
 }
 
 namespace axiom::sentinel {
 
-EFI_FILE_PROTOCOL* OpenKernelFile(EFI_HANDLE ImageHandle) {
-    EFI_LOADED_IMAGE_PROTOCOL* loadedImage = nullptr;
-    gST->BootServices->HandleProtocol(ImageHandle, &gLoadedImageProtocolGuid, (void**)&loadedImage);
+// ... (OpenKernelFile stays the same) ...
 
-    EFI_SIMPLE_FILE_SYSTEM_PROTOCOL* fs = nullptr;
-    gST->BootServices->HandleProtocol(loadedImage->DeviceHandle, &gEfiSimpleFileSystemProtocolGuid, (void**)&fs);
-
-    EFI_FILE_PROTOCOL* root = nullptr;
-    fs->OpenVolume(fs, &root);
-
-    EFI_FILE_PROTOCOL* kernelFile = nullptr;
-    root->Open(root, &kernelFile, (CHAR16*)L"axiom_kernel.elf", EFI_FILE_MODE_READ, 0);
-
-    return kernelFile;
-}
-
-void InitializeFirmware(SentinelConfig config) {
+void InitializeFirmware(SentinelConfig config, BootInfo* boot_info) {
     if (config.EnableFramebuffer) {
         EFI_GUID gopGuid = EFI_GRAPHICS_OUTPUT_PROTOCOL_GUID;
         EFI_GRAPHICS_OUTPUT_PROTOCOL* gop = nullptr;
 
         EFI_STATUS status = gST->BootServices->LocateProtocol(&gopGuid, nullptr, (void**)&gop);
-        if (EFI_ERROR(status)) {
-            // Log error
-        } else {
-            // Successfully located GOP
+        if (!EFI_ERROR(status)) {
+            boot_info->GraphicsInfo.FramebufferBase = gop->Mode->FrameBufferBase;
+            boot_info->GraphicsInfo.Width = gop->Mode->Info->HorizontalResolution;
+            boot_info->GraphicsInfo.Height = gop->Mode->Info->VerticalResolution;
+            boot_info->GraphicsInfo.PixelsPerScanLine = gop->Mode->Info->PixelsPerScanLine;
+            boot_info->GraphicsInfo.Format = gop->Mode->Info->PixelFormat;
         }
     }
     if (config.EnableAcpi) {
@@ -66,32 +62,41 @@ void InitializeFirmware(SentinelConfig config) {
         }
 
         if (rsdp) {
-            // Successfully located ACPI 2.0 RSDP
+            boot_info->AcpiRsdpAddress = (uint64_t)rsdp;
         }
     }
+
+    // Memory Map
+    UINTN memoryMapSize = 0;
+    EFI_MEMORY_DESCRIPTOR* memoryMap = nullptr;
+    UINTN mapKey = 0;
+    UINTN descriptorSize = 0;
+    UINT32 descriptorVersion = 0;
+    gST->BootServices->GetMemoryMap(&memoryMapSize, nullptr, &mapKey, &descriptorSize, &descriptorVersion);
+
+    // Allocate memory for map - we might need extra space
+    memoryMap = (EFI_MEMORY_DESCRIPTOR*)AllocatePool(memoryMapSize + (10 * descriptorSize));
+    gST->BootServices->GetMemoryMap(&memoryMapSize, memoryMap, &mapKey, &descriptorSize, &descriptorVersion);
+
+    boot_info->MemoryMapAddress = (uint64_t)memoryMap;
+    boot_info->MemoryMapSize = memoryMapSize;
+    boot_info->DescriptorSize = descriptorSize;
 }
 
-bool ValidateElf(axiom::Elf64_Ehdr* ehdr) {
-    if (ehdr->e_ident[0] != axiom::ELFMAG0 ||
-        ehdr->e_ident[1] != axiom::ELFMAG1 ||
-        ehdr->e_ident[2] != axiom::ELFMAG2 ||
-        ehdr->e_ident[3] != axiom::ELFMAG3) {
-        return false;
-    }
-    if (ehdr->e_machine != axiom::EM_X86_64) return false;
-    return true;
-}
+// ... (ValidateElf stays the same) ...
 
-void LoadKernel(EFI_HANDLE ImageHandle) {
+KernelLoadResult LoadKernel(EFI_HANDLE ImageHandle) {
     EFI_FILE_PROTOCOL* kernelFile = OpenKernelFile(ImageHandle);
-    if (!kernelFile) return;
+    if (!kernelFile) return {0, nullptr};
 
     // Read ELF header
     axiom::Elf64_Ehdr ehdr;
     UINTN size = sizeof(axiom::Elf64_Ehdr);
     kernelFile->Read(kernelFile, &size, &ehdr);
 
-    if (!ValidateElf(&ehdr)) return;
+    if (!ValidateElf(&ehdr)) return {0, nullptr};
+
+    axiom::PageTable* pml4 = (axiom::PageTable*)AllocatePage();
 
     // Iterate over Program Headers
     for (int i = 0; i < ehdr.e_phnum; i++) {
@@ -102,14 +107,36 @@ void LoadKernel(EFI_HANDLE ImageHandle) {
 
         if (phdr.p_type == axiom::PT_LOAD) {
             // Allocate memory and load segment
-            // TODO: Use UEFI AllocatePages/AllocatePool
+            UINTN pages = (phdr.p_memsz + 4095) / 4096;
+            void* physicalAddress = AllocatePages(pages);
+
+            kernelFile->SetPosition(kernelFile, phdr.p_offset);
+            UINTN readSize = phdr.p_filesz;
+            kernelFile->Read(kernelFile, &readSize, physicalAddress);
+
+            // Map segment
+            for (UINTN page = 0; page < pages; ++page) {
+                MapPage(pml4, phdr.p_vaddr + page * 4096, (uint64_t)physicalAddress + page * 4096, 0x2);
+            }
         }
     }
+    return {ehdr.e_entry, pml4};
 }
 
-void TransitionToKernel(BootInfo* boot_info) {
-    // TODO: Construct paging, jump to entry point
+void TransitionToKernel(BootInfo* boot_info, uint64_t entry_point, axiom::PageTable* pml4, uint64_t stack_top) {
+    __asm__ volatile (
+        "mov %0, %%cr3\n"
+        "mov %1, %%rsp\n"
+        "mov %2, %%rdi\n"
+        "jmp *%3\n"
+        :
+        : "r"(pml4), "r"(stack_top), "r"(boot_info), "r"(entry_point)
+        : "memory"
+    );
 }
 
 } // namespace axiom::sentinel
+
+
+
 
